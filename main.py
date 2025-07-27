@@ -3,24 +3,87 @@ import numpy as np
 import src.video_reader as vr
 import test as test
 import src.extract_wave as ext
+import argparse
+import sys
 from src.config import Video 
 from src.config import Signal
+from sklearn.decomposition import PCA
 
-def runLoad():
+def runLoad(channels=['G'], face_tracking=False):
     video_path = r"data\Dataset1\vid_s28_T1.avi"
     output_path = r"outputs"
-    video_array = vr.read_video_to_array(video_path, True, False, True)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
+    video_array = vr.read_video_to_array(video_path, False, False, False)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
 
     #test.render_frame(video_array[0])
     R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
 
-    G_signal = ext.bandpass_filter(G_signal, Video.FPS)
-    R_signal = ext.bandpass_filter(R_signal, Video.FPS)
-    B_signal = ext.bandpass_filter(B_signal, Video.FPS)
-    ext.save_rgb_signals(output_path, R_signal, G_signal, B_signal)
-    #plot_signal(G_signal)
-    #bpm_over_time(G_signal)
+    #G_signal = ext.bandpass_filter(G_signal, Video.FPS)
+    #R_signal = ext.bandpass_filter(R_signal, Video.FPS)
+    #B_signal = ext.bandpass_filter(B_signal, Video.FPS)
+
+    signals = {}
+
+    if 'R' in channels:
+        R_signal = ext.bandpass_filter(R_signal, Video.FPS)
+        signals['R'] = R_signal
+    if 'G' in channels:
+        G_signal = ext.bandpass_filter(G_signal, Video.FPS)
+        signals['G'] = G_signal
+    if 'B' in channels:
+        B_signal = ext.bandpass_filter(B_signal, Video.FPS)
+        signals['B'] = B_signal
+    if 'GREY_W' in channels:
+        gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
+        gray_w = ext.bandpass_filter(gray_w, Video.FPS)
+        signals['GREY_W'] = gray_w
+    if 'GREY_A' in channels:
+        gray_a = (R_signal + G_signal + B_signal) / 3.0
+        gray_a = ext.bandpass_filter(gray_a, Video.FPS)
+        signals['GREY_A'] = gray_a
+    if 'PCA' in channels:
+        pca_components = extract_pca_components(R_signal, G_signal, B_signal)
+        for i in range(min(3, pca_components.shape[1])):
+            signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
+    if 'ZCA' in channels:
+        zca_components = zca_whiten(R_signal, G_signal, B_signal)
+        for i in range(min(3, zca_components.shape[1])):
+            signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
+
+
+    # loop though signals
+
+    for label, signal_data in signals.items():
+        print(f"\nAnalyzing signal: {label}")
+        plot_signal(signal_data, label)
+        bpm_over_time(signal_data)
+
+   # plot_signal(G_signal)
+   # bpm_over_time(G_signal)
    
+def zca_whiten(R, G, B, epsilon=1e-5):
+    signal_matrix = np.vstack((R, G, B)).T  # shape (time, channels)
+    
+    # Center the data
+    X = signal_matrix - np.mean(signal_matrix, axis=0)
+    
+    # Compute covariance
+    sigma = np.cov(X, rowvar=False)
+    
+    # Eigen-decomposition
+    U, S, _ = np.linalg.svd(sigma)
+    
+    # ZCA Whitening matrix
+    ZCA_matrix = U @ np.diag(1.0 / np.sqrt(S + epsilon)) @ U.T
+    X_zca = X @ ZCA_matrix.T
+    
+    return X_zca  # shape (time, 3)
+
+def extract_pca_components(R, G, B, n_components=3):
+    signal_matrix = np.vstack((R, G, B)).T
+    pca = PCA(n_components=n_components)
+    components = pca.fit_transform(signal_matrix)
+    print("PCA explained variance ratio:", pca.explained_variance_ratio_)
+    return components
 
 def plot_signals(G_signal, R_signal, B_signal):
     fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
@@ -44,7 +107,7 @@ def plot_signals(G_signal, R_signal, B_signal):
     plt.tight_layout()
     plt.show()
 
-def plot_signal(signal_processed):
+def plot_signal(signal_processed, label):
     dt = 1 / Video.FPS
     n = len(signal_processed)
     time = np.arange(n) / Video.FPS
@@ -68,15 +131,15 @@ def plot_signal(signal_processed):
     fig, axs = plt.subplots(3, 1, figsize=(12, 10))
 
     # 1. Original signal
-    axs[0].plot(time, signal_processed, color='green')
-    axs[0].set_title("1. Filtered Green Channel (Time Domain)")
+    axs[0].plot(time, signal_processed, color='black')
+    axs[0].set_title(f"1. Time Signal - {label}")
     axs[0].set_xlabel("Time (s)")
     axs[0].set_ylabel("Intensity")
 
     # 2. FFT
     axs[1].plot(freqs, fft_mag, color='purple')
-    axs[1].set_xlim(0, 5)  # Focus on heart rate band
-    axs[1].set_title("2. FFT Magnitude Spectrum")
+    axs[1].set_xlim(0, 5)
+    axs[1].set_title(f"2. FFT Magnitude Spectrum - {label}")
     axs[1].set_xlabel("Frequency (Hz)")
     axs[1].set_ylabel("Amplitude")
 
@@ -84,7 +147,7 @@ def plot_signal(signal_processed):
     axs[2].plot(freqs, power_spec, color='orange')
     axs[2].axvline(peak_freq, color='red', linestyle='--', label=f'Peak: {peak_freq:.2f} Hz ({bpm:.1f} BPM)')
     axs[2].set_xlim(0, 5)
-    axs[2].set_title("3. Power Spectrum")
+    axs[2].set_title(f"3. Power Spectrum - {label}")
     axs[2].set_xlabel("Frequency (Hz)")
     axs[2].set_ylabel("Power")
     axs[2].legend()
@@ -95,7 +158,7 @@ def plot_signal(signal_processed):
     print(f"Estimated Heart Rate: {bpm:.2f} BPM")
 
 
-def bpm_over_time(signal_processed):
+def bpm_over_time(signal_processed, label):
     window_size_sec = 4  
     window_size = int(window_size_sec * Video.FPS)  
     step_size = window_size - 2
@@ -125,14 +188,39 @@ def bpm_over_time(signal_processed):
 
     # Plot heart rate over time
     plt.plot(time_bins, bpm_list)
-    plt.xlabel('Time (s)')
+    plt.xlabel(f"Time - {label}")
     plt.ylabel('Heart Rate (BPM)')
-    plt.title('Heart Rate Over Time')
+    plt.title(f"Heart Rate Over Time - {label}")
     plt.show()
 
-
+# example usage python main.py --channels G R --face_tracking
 def main():
-    runLoad()
+    parser = argparse.ArgumentParser(description="Video signal processing CLI")
+    parser.add_argument(
+        '--channels',
+        nargs='+',
+        choices=['R', 'G', 'B', 'GREY_W', 'GREY_A', 'PCA', 'ZCA'],
+        default=['G'],
+        help='Color channels: R, G, B, GREY_W (weighted), GREY_A (average) , PCA, ZCA'
+    )
+    parser.add_argument(
+        '--face_tracking',
+        action='store_true',
+        help='Enable face tracking'
+    )
+
+    # Only parse args if they exist (i.e., from command line)
+    if len(sys.argv) > 1:
+        args = parser.parse_args()
+    else:
+        # Defaults for IDE or test environment
+        args = parser.parse_args(args=[])
+
+        # Optional: manually override for testing here
+        args.channels = ['G', 'GREY_W']
+        #args.face_tracking = False
+
+    runLoad(channels=args.channels, face_tracking=args.face_tracking)
 
 
 

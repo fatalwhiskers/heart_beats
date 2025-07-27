@@ -6,8 +6,8 @@ from decord import VideoReader
 from torchvision.io import read_video
 from .config import Video 
 from scipy.interpolate import interp1d
-
-def interpolate_video_frames(frames, original_fps, target_fps):
+"""
+def interpolate_video_frames(frames, original_fps, target_fps): #memoary problems
     if original_fps == target_fps:
         return frames
 
@@ -27,6 +27,69 @@ def interpolate_video_frames(frames, original_fps, target_fps):
                 frames_interp[:, i, j, ch] = interp_func(t_target)
 
     return np.clip(frames_interp, 0, 255).astype(np.uint8)
+"""
+
+def interpolate_video_frames(frames, original_fps, target_fps, use_float16=True):
+    if original_fps == target_fps:
+        return frames
+
+    n_frames, h, w, c = frames.shape
+    duration = n_frames / original_fps
+
+    t_original = np.linspace(0, duration, n_frames)
+    t_target = np.linspace(0, duration, int(duration * target_fps))
+
+    dtype = np.float16 if use_float16 else np.float32
+
+    frames_interp = np.empty((len(t_target), h, w, c), dtype=dtype)
+
+    for ch in range(c):
+        print(f"Interpolating channel {ch + 1}/{c}...")
+        for i in range(h):
+            pixel_row = frames[:, i, :, ch]  # shape: (n_frames, w)
+
+            for j in range(w):
+                pixel_values = pixel_row[:, j]  # shape: (n_frames,)
+                interp_func = interp1d(t_original, pixel_values, kind='linear', bounds_error=False, fill_value='extrapolate')
+                frames_interp[:, i, j, ch] = interp_func(t_target)
+
+    # Clip and cast to uint8 for final video format
+    return np.clip(frames_interp, 0, 255).astype(np.uint8)
+
+def interpolate_video_frames_chunked(frames, original_fps, target_fps, chunk_size=100, use_float16=False):
+    if original_fps == target_fps:
+        return frames
+
+    n_frames, h, w, c = frames.shape
+    duration = n_frames / original_fps
+
+    t_original = np.linspace(0, duration, n_frames)
+    t_target_full = np.linspace(0, duration, int(duration * target_fps))
+
+    dtype = np.float16 if use_float16 else np.float32
+    output_chunks = []
+
+    print(f"Interpolating in chunks of {chunk_size} frames...")
+
+    # Interpolation setup for each pixel position and channel
+    for start in range(0, len(t_target_full), chunk_size):
+        end = min(start + chunk_size, len(t_target_full))
+        t_target_chunk = t_target_full[start:end]
+        chunk_interp = np.empty((len(t_target_chunk), h, w, c), dtype=dtype)
+
+        for ch in range(c):
+            for i in range(h):
+                for j in range(w):
+                    pixel_values = frames[:, i, j, ch]
+                    interp_func = interp1d(t_original, pixel_values, kind='linear', bounds_error=False, fill_value='extrapolate')
+                    chunk_interp[:, i, j, ch] = interp_func(t_target_chunk)
+
+        output_chunks.append(chunk_interp)
+        print(f"  → Chunk {start}-{end} done")
+
+    # Concatenate all chunks into one big array
+    final_result = np.concatenate(output_chunks, axis=0)
+    return np.clip(final_result, 0, 255).astype(np.uint8)
 
 #loads a video into an array in cv2 bgr
 #video path = string to location (must be escaperd)
@@ -73,7 +136,7 @@ def read_video_to_array(video_path, Interpolate=True, display=False, testing=Fal
     frames = np.array(frames)
 
     if Interpolate:
-        frames = interpolate_video_frames(frames, Video.fps, Video.target_FPS)
+        frames = interpolate_video_frames(frames, Video.fps, Video.target_FPS) #change this
 
     return frames
 
