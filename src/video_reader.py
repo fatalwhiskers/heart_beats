@@ -4,8 +4,10 @@ import numpy as np
 import decord
 from decord import VideoReader
 from torchvision.io import read_video
-from .config import Video 
+from src.config import Video 
 from scipy.interpolate import interp1d
+import csv
+
 """
 def interpolate_video_frames(frames, original_fps, target_fps): #memoary problems
     if original_fps == target_fps:
@@ -95,9 +97,10 @@ def interpolate_video_frames_chunked(frames, original_fps, target_fps, chunk_siz
 #video path = string to location (must be escaperd)
 #resize is optional not reallt important here
 #189s
-def read_video_to_array(video_path, Interpolate=True, display=False, testing=False):
+def read_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True, display=False, testing=False):
+
     cap = cv2.VideoCapture(video_path)
-    Video.fps = cap.get(cv2.CAP_PROP_FPS)
+    #Video.fps = cap.get(cv2.CAP_PROP_FPS) reads the files fps but is wrong
 
     if not cap.isOpened():
         print(f"Error: Could not open video at {video_path}")
@@ -115,8 +118,9 @@ def read_video_to_array(video_path, Interpolate=True, display=False, testing=Fal
             break
 
         # Optional crop:
-        # frame = crop_frame(frame, Video.ROI_HEIGHT, Video.ROI_WIDTH)
-        # frame = crop_frame_percent(frame, 0.55, 0.5)
+        if crop:
+          frame = frame[y1:y2, x1:x2]
+          #frame = crop_frame_percent(frame, 0.55, 0.5)
 
         frames.append(frame)
         frame_count += 1
@@ -134,9 +138,6 @@ def read_video_to_array(video_path, Interpolate=True, display=False, testing=Fal
         cv2.destroyAllWindows()
 
     frames = np.array(frames)
-
-    if Interpolate:
-        frames = interpolate_video_frames(frames, Video.fps, Video.target_FPS) #change this
 
     return frames
 
@@ -192,7 +193,6 @@ def crop_frame_percent(frame, percent_h, percent_w):
 
     return frame[start_y:start_y + crop_h, start_x:start_x + crop_w]
 
-
 def crop_frame(frame, crop_h, crop_w, position='center'):
     """
     - position (str): One of 'center', 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
@@ -221,3 +221,20 @@ def crop_frame(frame, crop_h, crop_w, position='center'):
         raise ValueError(f"Invalid crop position: {position}")
 
     return frame[start_y:start_y+crop_h, start_x:start_x+crop_w]
+
+def load_crop_settings(csv_path):
+    crop_settings = []
+    with open(csv_path, newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                filename = row['filename'].strip()
+                x1 = int(row['x1'])
+                y1 = int(row['y1'])
+                x2 = int(row['x2'])
+                y2 = int(row['y2'])
+                crop_settings.append((filename, x1, y1, x2, y2))
+            except (KeyError, ValueError) as e:
+                print(f"Skipping row due to error: {e}")
+                continue  # skip malformed rows
+    return crop_settings

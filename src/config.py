@@ -2,10 +2,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=False)
 class Video:
-    FPS: int = 30
-    target_FPS: int = 30
-    ROI_WIDTH: int = 200      # px
-    ROI_HEIGHT: int = 200     # px
+    FPS: int = 35
+    target_FPS: int = 35
 
 @dataclass(frozen=True)
 class Signal:

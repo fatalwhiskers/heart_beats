@@ -5,57 +5,65 @@ import test as test
 import src.extract_wave as ext
 import argparse
 import sys
+import os
 from src.config import Video 
 from src.config import Signal
 from sklearn.decomposition import PCA
 
-def runLoad(channels=['G'], face_tracking=False):
-    video_path = r"data\Dataset1\vid_s28_T1.avi"
-    output_path = r"outputs"
-    video_array = vr.read_video_to_array(video_path, False, False, False)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
+def runLoad(channels=['G'], cropping = True, face_tracking = False, Display = False, Testing = False):
+    output_path = r"outputs"  
+    folder_path = r"data\Dataset1"
+    csv_path = r"data\CSVFiles\Settings.csv"
+    crop_list = vr.load_crop_settings(csv_path)
+    
+    for filename, x1, y1, x2, y2 in crop_list:
 
-    #test.render_frame(video_array[0])
-    R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
+        video_path = os.path.join(folder_path, filename)
+        video_array = vr.read_video_to_array(video_path, x1, y1, x2, y2, cropping, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
 
-    #G_signal = ext.bandpass_filter(G_signal, Video.FPS)
-    #R_signal = ext.bandpass_filter(R_signal, Video.FPS)
-    #B_signal = ext.bandpass_filter(B_signal, Video.FPS)
+        #test.render_frame(video_array[0])
+        R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
 
-    signals = {}
+        #G_signal = ext.bandpass_filter(G_signal, Video.FPS)
+        #R_signal = ext.bandpass_filter(R_signal, Video.FPS)
+        #B_signal = ext.bandpass_filter(B_signal, Video.FPS)
 
-    if 'R' in channels:
-        R_signal = ext.bandpass_filter(R_signal, Video.FPS)
-        signals['R'] = R_signal
-    if 'G' in channels:
-        G_signal = ext.bandpass_filter(G_signal, Video.FPS)
-        signals['G'] = G_signal
-    if 'B' in channels:
-        B_signal = ext.bandpass_filter(B_signal, Video.FPS)
-        signals['B'] = B_signal
-    if 'GREY_W' in channels:
-        gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
-        gray_w = ext.bandpass_filter(gray_w, Video.FPS)
-        signals['GREY_W'] = gray_w
-    if 'GREY_A' in channels:
-        gray_a = (R_signal + G_signal + B_signal) / 3.0
-        gray_a = ext.bandpass_filter(gray_a, Video.FPS)
-        signals['GREY_A'] = gray_a
-    if 'PCA' in channels:
-        pca_components = extract_pca_components(R_signal, G_signal, B_signal)
-        for i in range(min(3, pca_components.shape[1])):
-            signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
-    if 'ZCA' in channels:
-        zca_components = zca_whiten(R_signal, G_signal, B_signal)
-        for i in range(min(3, zca_components.shape[1])):
-            signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
+        signals = {}
+
+        if 'R' in channels:
+            signals['R'] = ext.bandpass_filter(R_signal, Video.FPS)
+
+        if 'G' in channels:
+            signals['G'] = ext.bandpass_filter(G_signal, Video.FPS)
+            signals['G_raw'] = ext.bandpass_filter(G_signal, Video.FPS)
+        if 'B' in channels:
+            signals['B'] = ext.bandpass_filter(B_signal, Video.FPS)
+        if 'GREY_W' in channels:
+            gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
+            gray_w = ext.bandpass_filter(gray_w, Video.FPS)
+            signals['GREY_W'] = gray_w
+        if 'GREY_A' in channels:
+            gray_a = (R_signal + G_signal + B_signal) / 3.0
+            gray_a = ext.bandpass_filter(gray_a, Video.FPS)
+            signals['GREY_A'] = gray_a
+        if 'PCA' in channels:
+            pca_components = extract_pca_components(R_signal, G_signal, B_signal)
+            for i in range(min(3, pca_components.shape[1])):
+                signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
+        if 'ZCA' in channels:
+            zca_components = zca_whiten(R_signal, G_signal, B_signal)
+            for i in range(min(3, zca_components.shape[1])):
+                signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
 
 
-    # loop though signals
+        # loop though signals
 
-    for label, signal_data in signals.items():
-        print(f"\nAnalyzing signal: {label}")
-        plot_signal(signal_data, label)
-        bpm_over_time(signal_data)
+        for label, signal_data in signals.items():
+            print(f"\nAnalyzing signal: {label}")
+           # print("Correlation:", np.corrcoef(G_signal, gray_w)[0, 1])
+            print("First 5 values:", signal_data[:5])
+            plot_signal(signal_data, label)
+            bpm_over_time(signal_data, label)
 
    # plot_signal(G_signal)
    # bpm_over_time(G_signal)
@@ -159,16 +167,17 @@ def plot_signal(signal_processed, label):
 
 
 def bpm_over_time(signal_processed, label):
-    window_size_sec = 4  
-    window_size = int(window_size_sec * Video.FPS)  
-    step_size = window_size - 2
+    window_size_sec = 10
+    window_size = int(window_size_sec * Video.FPS)
+    step_size = window_size // 2
 
     bpm_list = []
     time_bins = []
 
     for start in range(0, len(signal_processed) - window_size + 1, step_size):
         segment = signal_processed[start:start + window_size]
-        
+        segment = segment * np.hamming(len(segment))  # Apply Hamming window
+
         n = len(segment)
         fhat = np.fft.fft(segment)
         freqs = np.fft.fftfreq(n, d=1 / Video.FPS)
@@ -186,11 +195,16 @@ def bpm_over_time(signal_processed, label):
         bpm_list.append(bpm)
         time_bins.append(start / Video.FPS)  # time in seconds for the bin start
 
+    # Calculate average BPM
+    avg_bpm = np.mean(bpm_list) if bpm_list else 0
+
     # Plot heart rate over time
-    plt.plot(time_bins, bpm_list)
+    plt.plot(time_bins, bpm_list, label='BPM Over Time', color='blue')
+    plt.axhline(y=avg_bpm, color='red', linestyle='--', label=f'Average BPM: {avg_bpm:.2f}')
     plt.xlabel(f"Time - {label}")
     plt.ylabel('Heart Rate (BPM)')
     plt.title(f"Heart Rate Over Time - {label}")
+    plt.legend()
     plt.show()
 
 # example usage python main.py --channels G R --face_tracking
@@ -217,7 +231,7 @@ def main():
         args = parser.parse_args(args=[])
 
         # Optional: manually override for testing here
-        args.channels = ['G', 'GREY_W']
+        args.channels = ['G', 'B']
         #args.face_tracking = False
 
     runLoad(channels=args.channels, face_tracking=args.face_tracking)
