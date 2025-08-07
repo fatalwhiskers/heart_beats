@@ -9,8 +9,9 @@ import os
 from src.config import Video 
 from src.config import Signal
 from sklearn.decomposition import PCA
+from scipy.interpolate import interp1d
 
-def runLoad(channels=['G'], cropping = True, face_tracking = False, Display = False, Testing = False):
+def runLoad(channels=['G'], cropping = True, face_tracking = False, interpolate = True, Display = False, Testing = False):
     output_path = r"outputs"  
     folder_path = r"data\Dataset1"
     csv_path = r"data\CSVFiles\Settings.csv"
@@ -19,11 +20,22 @@ def runLoad(channels=['G'], cropping = True, face_tracking = False, Display = Fa
     for filename, x1, y1, x2, y2 in crop_list:
 
         video_path = os.path.join(folder_path, filename)
-        video_array = vr.read_video_to_array(video_path, x1, y1, x2, y2, cropping, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
-
+        video_array, time_array = vr.read_video_to_array(video_path, x1, y1, x2, y2, cropping, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
+        
         #test.render_frame(video_array[0])
         R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
-
+        if interpolate:
+            R_signal , t_uniform = interpolate_signal_with_timestamps(R_signal, time_array) 
+            B_signal , t_uniform = interpolate_signal_with_timestamps(B_signal, time_array)
+            plt.figure()
+            plt.plot(time_array, G_signal, 'o-', label='Original G (raw)')
+            G_signal , t_uniform = interpolate_signal_with_timestamps(G_signal, time_array)
+            plt.plot(t_uniform, G_signal, '-x', label='Interpolated G (35 Hz)')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Green Signal')
+            plt.legend()
+            plt.title('Raw vs Interpolated Green Signal')
+            plt.show()
         #G_signal = ext.bandpass_filter(G_signal, Video.FPS)
         #R_signal = ext.bandpass_filter(R_signal, Video.FPS)
         #B_signal = ext.bandpass_filter(B_signal, Video.FPS)
@@ -85,6 +97,23 @@ def zca_whiten(R, G, B, epsilon=1e-5):
     X_zca = X @ ZCA_matrix.T
     
     return X_zca  # shape (time, 3)
+
+def interpolate_signal_with_timestamps(signal, timestamps, target_fps=35):
+    start_time = timestamps[0]
+    end_time = timestamps[-1]
+    duration = end_time - start_time
+
+    # 1. Create a uniform time grid (target sampling points)
+    num_target_samples = int(duration * target_fps)
+    t_target = np.linspace(start_time, end_time, num_target_samples)
+
+    # 2. Create interpolation function from the original data
+    interp_func = interp1d(timestamps, signal, kind='linear', fill_value="extrapolate")
+
+    # 3. Evaluate the interpolation function at the uniform time points
+    interpolated_signal = interp_func(t_target)
+
+    return interpolated_signal, t_target
 
 def extract_pca_components(R, G, B, n_components=3):
     signal_matrix = np.vstack((R, G, B)).T
@@ -231,7 +260,7 @@ def main():
         args = parser.parse_args(args=[])
 
         # Optional: manually override for testing here
-        args.channels = ['G', 'B']
+        args.channels = ['G', 'PCA' , 'ZCA']
         #args.face_tracking = False
 
     runLoad(channels=args.channels, face_tracking=args.face_tracking)
