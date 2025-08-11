@@ -267,7 +267,7 @@ def get_bbox_forehead(frame, detection):
 def get_mesh_forehead(frame, face_landmarks):
     h, w, _ = frame.shape
 
-    # Using approximate forehead landmarks
+    # Using approximate forehead landmarks got off internet seems to work
     FOREHEAD_LANDMARKS = [10, 338, 297, 332, 284, 251, 389, 356]  # tweakable
 
     points = [(int(face_landmarks.landmark[i].x * w),
@@ -282,7 +282,7 @@ def get_mesh_forehead(frame, face_landmarks):
 
     return x1, y1, x2, y2
 
-def read_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
+def read_video_to_array_v2(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
     crop_mode='manual',  # 'manual', 'face_track', 'bbox_forehead', 'mesh_forehead', 'none'
     display=False,
     testing=False
@@ -304,17 +304,17 @@ def read_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
 
     tracker = None
     init_tracker = False
-    
+
     # so I rember what its do
     # Initialize MediaPipe face detection and face mesh models:
     # - FaceDetection is used to get the bounding box of the face.
     # - FaceMesh provides 468 detailed facial landmarks (eyes, nose, mouth, forehead, etc.).
-    # - model_selection=0: Optimized for short-range (e.g., webcam).
-    # - min_detection_confidence=0.7: Only use detections with at least 70% confidence.
-    # - static_image_mode=False: Enables faster tracking across video frames.
-    # - max_num_faces=1: Only detect one face per frame (for efficiency).
-    # - refine_landmarks=True: Enables more accurate eye and mouth landmarks.
-
+    # - model_selection=0: Optimized for short-range (e.g., webcam) set to 1 for distance
+    # - min_detection_confidence=0.7: Only use detections with at least 70% confidence. can be changed for differant scenarios
+    # - static_image_mode=False: Enables faster tracking across video frames. since its a video its not static 
+    # - max_num_faces=1: Only detect one face per frame (for efficiency). since we only have one face this will need to be changed for more
+    # - refine_landmarks=True: Enables more accurate eye and mouth landmarks. this increase processing but better quality. if its live ran may need to change
+    # don't remove the slash its wired python nonsense since they don't use semicolons (means carry onto next line)
     with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7) as face_detector, \
          mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.7) as face_mesh:
 
@@ -330,12 +330,17 @@ def read_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
             crop_frame = frame  # default to full frame
 
             if crop:
+                # 1. Manual cropping using fixed pixel coordinates
+                #    Uses x1, y1, x2, y2 given by the user
                 if crop_mode == 'manual':
                     crop_frame = frame[y1:y2, x1:x2]
-
+                # 2. No cropping at all — keep full frame
                 elif crop_mode == 'none':
                     crop_frame = frame
-
+                # 3. Face tracking using bounding box from first frame
+                #    - First, run face detection to locate the face
+                #    - Initialize OpenCV KCF tracker
+                #    - On later frames, update tracker instead of re-detecting
                 elif crop_mode == 'face_track':
                     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -369,7 +374,11 @@ def read_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
                             crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
                         else:
                             continue  # skip frame
-
+               
+                 # 4. Forehead region from face detection bounding box
+                    #    - Detect face with MediaPipe
+                    #    - Use a helper function (get_bbox_forehead) to
+                    #      extract only the forehead area from detection box                
                 elif crop_mode == 'bbox_forehead':
                     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     results = face_detector.process(rgb)
@@ -379,6 +388,10 @@ def read_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
                     else:
                         continue
 
+            # 5. Forehead region using facial landmarks (Face Mesh)
+            #    - Detect 468 face landmarks with MediaPipe
+            #    - Use a helper function (get_mesh_forehead) to
+            #      extract forehead region precisely from landmarks
                 elif crop_mode == 'mesh_forehead':
                     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     results = face_mesh.process(rgb)
@@ -405,6 +418,168 @@ def read_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
     cap.release()
     if display:
         cv2.destroyAllWindows()
+
+    frames = np.array(frames)
+    return frames, timestamps
+
+# added a fixed limit for cropping so that a univesal array can be stored.
+def read_video_to_array_v3(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
+    crop_mode='manual',  # 'manual', 'face_track', 'bbox_forehead', 'mesh_forehead', 'none'
+    display=False,
+    testing=False,
+    target_size=(128, 128)  # fixed output size for all frames
+):
+    """
+    Reads a video, crops around the face/forehead region based on the chosen mode,
+    and returns the cropped frames + timestamps.
+
+    crop_mode options:
+    - 'manual'        : Use fixed pixel coordinates (x1, y1, x2, y2).
+    - 'none'          : Keep the full frame, no cropping.
+    - 'face_track'    : Detect face once, track across frames with KCF tracker.
+    - 'bbox_forehead' : Detect face bounding box each frame, crop only forehead region.
+    - 'mesh_forehead' : Detect facial landmarks, crop forehead region precisely.
+    """
+
+    import cv2
+    import numpy as np
+    mp_face_detection = mp.solutions.face_detection
+    mp_face_mesh = mp.solutions.face_mesh
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"Error: Could not open video at {video_path}")
+        return None, None
+
+    if display:
+        cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+
+    frames = []
+    timestamps = []
+    frame_count = 0
+    skipped_count = 0  # count how many frames were skipped
+
+    tracker = None
+    init_tracker = False
+
+    # Initialize MediaPipe face detection and face mesh models:
+    # - FaceDetection: used to get the bounding box of the face.
+    # - FaceMesh: provides 468 detailed facial landmarks (eyes, nose, mouth, forehead, etc.).
+    # - model_selection=0: Optimized for short-range (e.g., webcam). Use 1 for long-range.
+    # - min_detection_confidence=0.7: Only use detections with at least 70% confidence.
+    # - static_image_mode=False: Faster tracking for videos (not re-detecting every frame).
+    # - max_num_faces=1: Only detect one face per frame (for efficiency).
+    # - refine_landmarks=True: More accurate eye and mouth landmarks (slower, but higher quality).
+    # Don't remove the backslash in the 'with' — Python uses it to continue the statement.
+    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7) as face_detector, \
+         mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.7) as face_mesh:
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0  # seconds
+            h, w, _ = frame.shape
+            crop_frame = frame  # default to full frame
+            success_crop = True  # track if we successfully cropped a face
+
+            if crop:
+                # 1. Manual cropping using fixed pixel coordinates
+                if crop_mode == 'manual':
+                    x1_c = max(0, min(x1, w))
+                    y1_c = max(0, min(y1, h))
+                    x2_c = max(0, min(x2, w))
+                    y2_c = max(0, min(y2, h))
+                    if x2_c <= x1_c or y2_c <= y1_c:
+                        success_crop = False
+                    else:
+                        crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
+
+                # 2. No cropping at all — keep full frame
+                elif crop_mode == 'none':
+                    crop_frame = frame
+
+                # 3. Face tracking using bounding box from first frame
+                #    - First, run face detection to locate the face
+                #    - Initialize OpenCV KCF tracker
+                #    - On later frames, update tracker instead of re-detecting
+                elif crop_mode == 'face_track':
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    if not init_tracker:
+                        results = face_detector.process(rgb)
+                        if results.detections:
+                            bbox = results.detections[0].location_data.relative_bounding_box
+                            x = int(bbox.xmin * w)
+                            y = int(bbox.ymin * h)
+                            width = int(bbox.width * w)
+                            height = int(bbox.height * h)
+                            tracker = cv2.TrackerKCF_create()
+                            tracker.init(frame, (x, y, width, height))
+                            init_tracker = True
+                            crop_frame = frame[max(0, y):min(h, y + height), max(0, x):min(w, x + width)]
+                        else:
+                            success_crop = False
+                    else:
+                        success, box = tracker.update(frame)
+                        if success:
+                            x, y, width, height = map(int, box)
+                            crop_frame = frame[max(0, y):min(h, y + height), max(0, x):min(w, x + width)]
+                        else:
+                            success_crop = False
+
+                # 4. Forehead region from face detection bounding box
+                #    - Detect face with MediaPipe
+                #    - Use get_bbox_forehead() to extract only forehead area
+                elif crop_mode == 'bbox_forehead':
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    results = face_detector.process(rgb)
+                    if results.detections:
+                        x1_f, y1_f, x2_f, y2_f = get_bbox_forehead(frame, results.detections[0])
+                        crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
+                    else:
+                        success_crop = False
+
+                # 5. Forehead region using facial landmarks (Face Mesh)
+                #    - Detect 468 face landmarks with MediaPipe
+                #    - Use get_mesh_forehead() to extract forehead region precisely
+                elif crop_mode == 'mesh_forehead':
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    results = face_mesh.process(rgb)
+                    if results.multi_face_landmarks:
+                        x1_f, y1_f, x2_f, y2_f = get_mesh_forehead(frame, results.multi_face_landmarks[0])
+                        crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
+                    else:
+                        success_crop = False
+
+                else:
+                    raise ValueError(f"Invalid crop_mode: {crop_mode}")
+
+            if success_crop:
+                # Resize to fixed size for consistency
+                crop_frame = cv2.resize(crop_frame, target_size, interpolation=cv2.INTER_AREA)
+                frames.append(crop_frame)
+                timestamps.append(timestamp)
+                frame_count += 1
+            else:
+                skipped_count += 1
+
+            # Limit to first 30 frames if testing
+            if testing and frame_count >= 30:
+                break
+
+            if display and success_crop:
+                cv2.imshow('frame', crop_frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+    cap.release()
+    if display:
+        cv2.destroyAllWindows()
+
+    # Log skipped frames for quality control
+    print(f"Total frames processed: {frame_count}, Skipped frames: {skipped_count} "
+          f"({(skipped_count / (frame_count + skipped_count) * 100):.2f}% skipped)")
 
     frames = np.array(frames)
     return frames, timestamps
