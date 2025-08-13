@@ -93,7 +93,7 @@ def draw_debug_overlay(frame, crop_mode, crop_coords=None, landmarks=None):
 # -------------------------------
 # Main function
 # -------------------------------
-def read_video_to_array_v2(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
+def extract_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
     crop_mode='manual', display=False, testing=False, test_output_dir="test_frames"
 ):
     mp_face_detection = mp.solutions.face_detection
