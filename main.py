@@ -45,29 +45,35 @@ def runLoad(channels=['G'], cropping = True, crop_mode = False, interpolate = Tr
 
         signals = {}
 
-        if 'R' in channels:
-            signals['R'] = ext.bandpass_filter(R_signal, Video.FPS)
-        if 'G' in channels:
-            signals['G'] = ext.bandpass_filter(G_signal, Video.FPS)
-           # signals['G_raw'] = ext.bandpass_filter(G_signal, Video.FPS)
-        if 'B' in channels:
-            signals['B'] = ext.bandpass_filter(B_signal, Video.FPS)
-        if 'GREY_W' in channels:
-            gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
-            gray_w = ext.bandpass_filter(gray_w, Video.FPS)
-            signals['GREY_W'] = gray_w
-        if 'GREY_A' in channels:
-            gray_a = (R_signal + G_signal + B_signal) / 3.0
-            gray_a = ext.bandpass_filter(gray_a, Video.FPS)
-            signals['GREY_A'] = gray_a
-        if 'PCA' in channels:
-            pca_components = extract_pca_components(R_signal, G_signal, B_signal)
-            for i in range(min(3, pca_components.shape[1])):
-                signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
-        if 'ZCA' in channels:
-            zca_components = zca_whiten(R_signal, G_signal, B_signal)
-            for i in range(min(3, zca_components.shape[1])):
-                signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
+    if 'R' in channels or 'ALL' in channels:
+        signals['R'] = ext.bandpass_filter(R_signal, Video.FPS)
+
+    if 'G' in channels or 'ALL' in channels:
+        signals['G'] = ext.bandpass_filter(G_signal, Video.FPS)
+        # signals['G_raw'] = ext.bandpass_filter(G_signal, Video.FPS)
+
+    if 'B' in channels or 'ALL' in channels:
+        signals['B'] = ext.bandpass_filter(B_signal, Video.FPS)
+
+    if 'GREY_W' in channels or 'ALL' in channels:
+        gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
+        gray_w = ext.bandpass_filter(gray_w, Video.FPS)
+        signals['GREY_W'] = gray_w
+
+    if 'GREY_A' in channels or 'ALL' in channels:
+        gray_a = (R_signal + G_signal + B_signal) / 3.0
+        gray_a = ext.bandpass_filter(gray_a, Video.FPS)
+        signals['GREY_A'] = gray_a
+
+    if 'PCA' in channels or 'ALL' in channels:
+        pca_components = extract_pca_components(R_signal, G_signal, B_signal)
+        for i in range(min(3, pca_components.shape[1])):
+            signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
+
+    if 'ZCA' in channels or 'ALL' in channels:
+        zca_components = zca_whiten(R_signal, G_signal, B_signal)
+        for i in range(min(3, zca_components.shape[1])):
+            signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
 
 
         # loop though signals
