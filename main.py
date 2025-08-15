@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import src.video_reader as vr
+import src.Video_extraction as VE
 import test as test
 import src.extract_wave as ext
 import argparse
@@ -10,8 +11,10 @@ from src.config import Video
 from src.config import Signal
 from sklearn.decomposition import PCA
 from scipy.interpolate import interp1d
+import pandas as pd
 
-def runLoad(channels=['G'], cropping = True, face_tracking = False, interpolate = True, Display = False, Testing = False):
+
+def runLoad(channels=['G'], cropping = True, crop_mode = False, interpolate = True, Display = False, Testing = False):
     output_path = r"outputs"  
     folder_path = r"data\Dataset1"
     csv_path = r"data\CSVFiles\Settings.csv"
@@ -20,7 +23,7 @@ def runLoad(channels=['G'], cropping = True, face_tracking = False, interpolate 
     for filename, x1, y1, x2, y2 in crop_list:
 
         video_path = os.path.join(folder_path, filename)
-        video_array, time_array = vr.read_video_to_array(video_path, x1, y1, x2, y2, cropping, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
+        video_array, time_array = VE.extract_video_to_array(video_path, x1, y1, x2, y2, cropping, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
         
         #test.render_frame(video_array[0])
         R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
@@ -44,10 +47,9 @@ def runLoad(channels=['G'], cropping = True, face_tracking = False, interpolate 
 
         if 'R' in channels:
             signals['R'] = ext.bandpass_filter(R_signal, Video.FPS)
-
         if 'G' in channels:
             signals['G'] = ext.bandpass_filter(G_signal, Video.FPS)
-            signals['G_raw'] = ext.bandpass_filter(G_signal, Video.FPS)
+           # signals['G_raw'] = ext.bandpass_filter(G_signal, Video.FPS)
         if 'B' in channels:
             signals['B'] = ext.bandpass_filter(B_signal, Video.FPS)
         if 'GREY_W' in channels:
@@ -79,7 +81,91 @@ def runLoad(channels=['G'], cropping = True, face_tracking = False, interpolate 
 
    # plot_signal(G_signal)
    # bpm_over_time(G_signal)
-   
+
+def summarize_results(signals_dict, fps=Video.FPS, ground_truth_bpm=None,
+                      save_csv=True, output_file="rppg_results.csv"):
+    """
+    Summarizes BPM estimation results for each signal channel, 
+    generates plots, and optionally saves as CSV.
+    """
+    results = []
+
+    for label, sig in signals_dict.items():
+        # FFT-based BPM estimation
+        n = len(sig)
+        fhat = np.fft.fft(sig)
+        freqs = np.fft.fftfreq(n, d=1 / fps)
+        power_spec = np.abs(fhat)**2 / n
+
+        pos = freqs > 0
+        freqs = freqs[pos]
+        power_spec = power_spec[pos]
+
+        hr_band = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
+        peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
+        bpm_est = peak_freq * 60
+
+        row = {"Channel": label, "Estimated_BPM": bpm_est}
+
+        # If ground truth available, compute metrics
+        if ground_truth_bpm is not None:
+            gt = np.array(ground_truth_bpm)
+            mae = np.mean(np.abs(bpm_est - gt))
+            rmse = np.sqrt(np.mean((bpm_est - gt) ** 2))
+            row["MAE"] = mae
+            row["RMSE"] = rmse
+
+        results.append(row)
+
+    results_df = pd.DataFrame(results)
+    print("\n=== RPPG Results Summary ===")
+    print(results_df)
+
+    if save_csv:
+        results_df.to_csv(output_file, index=False)
+        print(f"Saved results to {output_file}")
+
+    # ==== Plot MAE per channel (if GT available) ====
+    if ground_truth_bpm is not None and "MAE" in results_df.columns:
+        plt.figure(figsize=(8, 5))
+        plt.bar(results_df["Channel"], results_df["MAE"], color="skyblue")
+        plt.ylabel("MAE (BPM)")
+        plt.title("Mean Absolute Error per Channel")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.show()
+
+        # ==== Bland–Altman plots ====
+        for label, sig in signals_dict.items():
+            n = len(sig)
+            fhat = np.fft.fft(sig)
+            freqs = np.fft.fftfreq(n, d=1 / fps)
+            pos = freqs > 0
+            freqs = freqs[pos]
+            power_spec = np.abs(fhat)**2 / n
+            hr_band = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
+            peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
+            bpm_est = peak_freq * 60
+
+            avg_vals = (bpm_est + np.array(ground_truth_bpm)) / 2
+            diff_vals = bpm_est - np.array(ground_truth_bpm)
+
+            mean_diff = np.mean(diff_vals)
+            loa = 1.96 * np.std(diff_vals)
+
+            plt.figure(figsize=(6, 5))
+            plt.scatter(avg_vals, diff_vals, alpha=0.6)
+            plt.axhline(mean_diff, color='red', linestyle='--', label=f'Mean Bias: {mean_diff:.2f}')
+            plt.axhline(mean_diff + loa, color='gray', linestyle='--', label=f'+1.96 SD')
+            plt.axhline(mean_diff - loa, color='gray', linestyle='--', label=f'-1.96 SD')
+            plt.title(f"Bland–Altman Plot - {label}")
+            plt.xlabel("Average BPM")
+            plt.ylabel("Difference (Est - GT)")
+            plt.legend()
+            plt.grid(True, linestyle='--', alpha=0.6)
+            plt.show()
+
+    return results_df
+
 def zca_whiten(R, G, B, epsilon=1e-5):
     signal_matrix = np.vstack((R, G, B)).T  # shape (time, channels)
     

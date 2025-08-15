@@ -93,9 +93,12 @@ def draw_debug_overlay(frame, crop_mode, crop_coords=None, landmarks=None):
 # -------------------------------
 # Main function
 # -------------------------------
-def extract_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
-    crop_mode='manual', display=False, testing=False, test_output_dir="test_frames"
+def extract_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0,
+    crop_mode='manual',
+    display=False, testing=False,
+    test_output_dir=r"outputs\test_frames"
 ):
+    
     mp_face_detection = mp.solutions.face_detection
     mp_face_mesh = mp.solutions.face_mesh
 
@@ -143,78 +146,83 @@ def extract_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0, crop=True,
             crop_coords = None
             landmarks = None
 
-            if crop:
-                if crop_mode == 'manual':
-                    crop_frame = frame[y1:y2, x1:x2]
-                    crop_coords = (x1, y1, x2, y2)
 
-                elif crop_mode == 'none':
-                    crop_frame = frame
+            if crop_mode == 'manual':
+                crop_frame = frame[y1:y2, x1:x2]
+                crop_coords = (x1, y1, x2, y2)
 
-                elif crop_mode == 'face_track':
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    if not init_tracker:
-                        results = face_detector.process(rgb)
-                        if results.detections:
-                            bbox = results.detections[0].location_data.relative_bounding_box
-                            x = int(bbox.xmin * w)
-                            y = int(bbox.ymin * h)
-                            width = int(bbox.width * w)
-                            height = int(bbox.height * h)
-                            tracker = cv2.TrackerKCF_create()
-                            tracker.init(frame, (x, y, width, height))
-                            init_tracker = True
-                            x1_c = max(0, x)
-                            y1_c = max(0, y)
-                            x2_c = min(w, x + width)
-                            y2_c = min(h, y + height)
-                            crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
-                            crop_coords = (x1_c, y1_c, x2_c, y2_c)
-                        else:
-                            continue
-                    else:
-                        success, box = tracker.update(frame)
-                        if success:
-                            x, y, width, height = map(int, box)
-                            x1_c = max(0, x)
-                            y1_c = max(0, y)
-                            x2_c = min(w, x + width)
-                            y2_c = min(h, y + height)
-                            crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
-                            crop_coords = (x1_c, y1_c, x2_c, y2_c)
-                        else:
-                            continue
+            elif crop_mode == 'none':
+                crop_frame = frame
 
-                elif crop_mode == 'bbox_forehead':
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            elif crop_mode == 'face_track':
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                if not init_tracker:
                     results = face_detector.process(rgb)
                     if results.detections:
-                        x1_f, y1_f, x2_f, y2_f = get_bbox_forehead(frame, results.detections[0])
-                        crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
-                        crop_coords = (x1_f, y1_f, x2_f, y2_f)
+                        bbox = results.detections[0].location_data.relative_bounding_box
+                        x = int(bbox.xmin * w)
+                        y = int(bbox.ymin * h)
+                        width = int(bbox.width * w)
+                        height = int(bbox.height * h)
+                        tracker = cv2.TrackerKCF_create()
+                        tracker.init(frame, (x, y, width, height))
+                        init_tracker = True
+                        x1_c = max(0, x)
+                        y1_c = max(0, y)
+                        x2_c = min(w, x + width)
+                        y2_c = min(h, y + height)
+                        crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
+                        crop_coords = (x1_c, y1_c, x2_c, y2_c)
                     else:
                         continue
-
-                elif crop_mode == 'mesh_forehead':
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    results = face_mesh.process(rgb)
-                    if results.multi_face_landmarks:
-                        x1_f, y1_f, x2_f, y2_f = get_mesh_forehead(frame, results.multi_face_landmarks[0])
-                        crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
-                        crop_coords = (x1_f, y1_f, x2_f, y2_f)
-                        landmarks = [(int(lm.x * w), int(lm.y * h)) for lm in results.multi_face_landmarks[0].landmark]
-                    else:
-                        continue
-
                 else:
-                    raise ValueError(f"Invalid crop_mode: {crop_mode}")
+                    success, box = tracker.update(frame)
+                    if success:
+                        x, y, width, height = map(int, box)
+                        x1_c = max(0, x)
+                        y1_c = max(0, y)
+                        x2_c = min(w, x + width)
+                        y2_c = min(h, y + height)
+                        crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
+                        crop_coords = (x1_c, y1_c, x2_c, y2_c)
+                    else:
+                        continue
+
+            elif crop_mode == 'bbox_forehead':
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = face_detector.process(rgb)
+                if results.detections:
+                    x1_f, y1_f, x2_f, y2_f = get_bbox_forehead(frame, results.detections[0])
+                    crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
+                    crop_coords = (x1_f, y1_f, x2_f, y2_f)
+                else:
+                    continue
+
+            elif crop_mode == 'mesh_forehead':
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = face_mesh.process(rgb)
+                if results.multi_face_landmarks:
+                    x1_f, y1_f, x2_f, y2_f = get_mesh_forehead(frame, results.multi_face_landmarks[0])
+                    crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
+                    crop_coords = (x1_f, y1_f, x2_f, y2_f)
+                    landmarks = [(int(lm.x * w), int(lm.y * h)) for lm in results.multi_face_landmarks[0].landmark]
+                else:
+                    continue
+
+            else:
+                raise ValueError(f"Invalid crop_mode: {crop_mode}")
 
             frames.append(crop_frame)
             frame_count += 1
 
             if testing and frame_count <= 30:
+                # Create subfolder for the current crop mode
+                mode_dir = os.path.join(test_output_dir, crop_mode)
+                os.makedirs(mode_dir, exist_ok=True)
+                # Draw overlay
                 debug_frame = draw_debug_overlay(frame, crop_mode, crop_coords, landmarks)
-                save_debug = os.path.join(test_output_dir, f"frame_{frame_count:03d}_debug.jpg")
+                # Use zero-padded frame numbers for proolper sorting
+                save_debug = os.path.join(mode_dir, f"{crop_mode}_frame_{frame_count:03d}.jpg")
                 cv2.imwrite(save_debug, debug_frame)
 
             if testing and frame_count >= 30:
