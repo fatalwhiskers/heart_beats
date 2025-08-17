@@ -14,7 +14,7 @@ from scipy.interpolate import interp1d
 import pandas as pd
 
 
-def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, Display = False, Testing = False):
+def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, Display = False, Testing = True):
     output_path = r"outputs"  
     folder_path = r"data\Dataset1"
     csv_path = r"data\CSVFiles\Settings.csv"
@@ -23,10 +23,11 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
     for filename, x1, y1, x2, y2 in crop_list:
 
         video_path = os.path.join(folder_path, filename)
-        video_array, time_array = VE.extract_video_to_array(video_path, x1, y1, x2, y2, crop_mode, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
-        
+        #video_array, time_array = VE.extract_video_to_array(video_path, x1, y1, x2, y2, crop_mode, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
+        #R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
+        R_signal, G_signal, B_signal, time_array = VE.extract_video_to_rgb(video_path, x1, y1, x2, y2, crop_mode, Display, Testing)
         #test.render_frame(video_array[0])
-        R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
+        
         if interpolate:
             R_signal , t_uniform = interpolate_signal_with_timestamps(R_signal, time_array) 
             B_signal , t_uniform = interpolate_signal_with_timestamps(B_signal, time_array)
@@ -45,44 +46,44 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
 
         signals = {}
 
-    if 'R' in channels or 'ALL' in channels:
-        signals['R'] = ext.bandpass_filter(R_signal, Video.FPS)
+        if 'R' in channels or 'ALL' in channels:
+            signals['R'] = ext.bandpass_filter(R_signal, Video.FPS)
 
-    if 'G' in channels or 'ALL' in channels:
-        signals['G'] = ext.bandpass_filter(G_signal, Video.FPS)
+        if 'G' in channels or 'ALL' in channels:
+            signals['G'] = ext.bandpass_filter(G_signal, Video.FPS)
 
-    if 'B' in channels or 'ALL' in channels:
-        signals['B'] = ext.bandpass_filter(B_signal, Video.FPS)
+        if 'B' in channels or 'ALL' in channels:
+            signals['B'] = ext.bandpass_filter(B_signal, Video.FPS)
 
-    if 'GREY_W' in channels or 'ALL' in channels:
-        gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
-        gray_w = ext.bandpass_filter(gray_w, Video.FPS)
-        signals['GREY_W'] = gray_w
+        if 'GREY_W' in channels or 'ALL' in channels:
+            gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
+            gray_w = ext.bandpass_filter(gray_w, Video.FPS)
+            signals['GREY_W'] = gray_w
 
-    if 'GREY_A' in channels or 'ALL' in channels:
-        gray_a = (R_signal + G_signal + B_signal) / 3.0
-        gray_a = ext.bandpass_filter(gray_a, Video.FPS)
-        signals['GREY_A'] = gray_a
+        if 'GREY_A' in channels or 'ALL' in channels:
+            gray_a = (R_signal + G_signal + B_signal) / 3.0
+            gray_a = ext.bandpass_filter(gray_a, Video.FPS)
+            signals['GREY_A'] = gray_a
 
-    if 'PCA' in channels or 'ALL' in channels:
-        pca_components = extract_pca_components(R_signal, G_signal, B_signal)
-        for i in range(min(3, pca_components.shape[1])):
-            signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
+        if 'PCA' in channels or 'ALL' in channels:
+            pca_components = extract_pca_components(R_signal, G_signal, B_signal)
+            for i in range(min(3, pca_components.shape[1])):
+                signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
 
-    if 'ZCA' in channels or 'ALL' in channels:
-        zca_components = zca_whiten(R_signal, G_signal, B_signal)
-        for i in range(min(3, zca_components.shape[1])):
-            signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
+        if 'ZCA' in channels or 'ALL' in channels:
+            zca_components = zca_whiten(R_signal, G_signal, B_signal)
+            for i in range(min(3, zca_components.shape[1])):
+                signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
 
 
-        # loop though signals
+            # loop though signals
 
-        for label, signal_data in signals.items():
-            print(f"\nAnalyzing signal: {label}")
-           # print("Correlation:", np.corrcoef(G_signal, gray_w)[0, 1])
-            print("First 5 values:", signal_data[:5])
-            plot_signal(signal_data, label)
-            bpm_over_time(signal_data, label)
+            for label, signal_data in signals.items():
+                print(f"\nAnalyzing signal: {label}")
+            # print("Correlation:", np.corrcoef(G_signal, gray_w)[0, 1])
+                print("First 5 values:", signal_data[:5])
+                plot_signal(signal_data, label)
+                bpm_over_time(signal_data, label)
 
    # plot_signal(G_signal)
    # bpm_over_time(G_signal)
@@ -333,15 +334,23 @@ def main():
     parser.add_argument(
         '--channels',
         nargs='+',
-        choices=['R', 'G', 'B', 'GREY_W', 'GREY_A', 'PCA', 'ZCA'],
+        choices=['R', 'G', 'B', 'GREY_W', 'GREY_A', 'PCA', 'ZCA', 'ALL'],
         default=['G'],
-        help='Color channels: R, G, B, GREY_W (weighted), GREY_A (average) , PCA, ZCA'
+        help='Color channels: R, G, B, GREY_W (weighted), GREY_A (average) , PCA, ZCA, All'
     )
     parser.add_argument(
-        '--face_tracking',
-        action='store_true',
-        help='Enable face tracking'
+    '--crop_mode',
+    choices=['manual', 'none', 'face_track', 'bbox_forehead', 'mesh_forehead'],
+    default='none',
+    help=(
+        "Cropping method:\n"
+        "manual - use fixed coords (x1,y1,x2,y2)\n"
+        "none - no cropping\n"
+        "face_track - detect face once then track with KCF\n"
+        "bbox_forehead - crop to forehead region using detection bbox\n"
+        "mesh_forehead - crop to forehead using mesh landmarks"
     )
+)
 
     # Only parse args if they exist (i.e., from command line)
     if len(sys.argv) > 1:
@@ -352,9 +361,10 @@ def main():
 
         # Optional: manually override for testing here
         args.channels = ['G', 'PCA' , 'ZCA']
+        args.crop_mode = 'face_track' 
         #args.face_tracking = False
 
-    runLoad(channels=args.channels, face_tracking=args.face_tracking)
+    runLoad(channels=args.channels, crop_mode=args.crop_mode)
 
 
 

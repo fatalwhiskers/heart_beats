@@ -9,6 +9,15 @@ def extract_rgb_signals_BGR(frames):
     
     return R, G, B
 
+def extract_rgb_signals_BGR_list(frames):
+    R, G, B = [], [], []
+    for f in frames:
+        B.append(f[:, :, 0].mean())
+        G.append(f[:, :, 1].mean())
+        R.append(f[:, :, 2].mean())
+    return np.array(R), np.array(G), np.array(B)
+
+
 #since doing pca later anyway "standardization"
 def zscore_normalize(signal):
     return (signal - np.mean(signal)) / (np.std(signal))

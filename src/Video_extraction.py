@@ -156,35 +156,43 @@ def extract_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0,
 
             elif crop_mode == 'face_track':
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
                 if not init_tracker:
                     results = face_detector.process(rgb)
                     if results.detections:
                         bbox = results.detections[0].location_data.relative_bounding_box
                         x = int(bbox.xmin * w)
                         y = int(bbox.ymin * h)
+                        
                         width = int(bbox.width * w)
                         height = int(bbox.height * h)
+
+                        margin_x = int(width * 0.2)
+                        margin_y = int(height * 0.3)  # 30% extra height
+                        
                         tracker = cv2.TrackerKCF_create()
                         tracker.init(frame, (x, y, width, height))
                         init_tracker = True
-                        x1_c = max(0, x)
-                        y1_c = max(0, y)
-                        x2_c = min(w, x + width)
-                        y2_c = min(h, y + height)
-                        crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
-                        crop_coords = (x1_c, y1_c, x2_c, y2_c)
+                        # clamp the box
+                        x1 = max(0, x)
+                        y1 = max(0, y - margin_y)
+                        x2 = min(w, x + width)
+                        y2 = min(h, y + height)
+                        crop_frame = frame[y1:y2, x1:x2]
+                        crop_coords = (x1, y1, x2, y2)
                     else:
                         continue
                 else:
                     success, box = tracker.update(frame)
                     if success:
                         x, y, width, height = map(int, box)
-                        x1_c = max(0, x)
-                        y1_c = max(0, y)
-                        x2_c = min(w, x + width)
-                        y2_c = min(h, y + height)
-                        crop_frame = frame[y1_c:y2_c, x1_c:x2_c]
-                        crop_coords = (x1_c, y1_c, x2_c, y2_c)
+                        margin_x = int(width * 0.2)
+                        x1 = max(0, x - margin_x)
+                        y1 = max(0, y)
+                        x2 = min(w, x + width)
+                        y2 = min(h, y + height)
+                        crop_frame = frame[y1:y2, x1:x2]
+                        crop_coords = (x1, y1, x2, y2)
                     else:
                         continue
 
@@ -237,5 +245,149 @@ def extract_video_to_array(video_path, x1=0, y1=0, x2=0, y2=0,
     if display:
         cv2.destroyAllWindows()
 
-    frames = np.array(frames)
+   # frames = np.array(frames)
     return frames, timestamps
+
+
+def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
+    crop_mode='manual',
+    display=False, testing=False,
+    test_output_dir=r"outputs\test_frames"
+):
+    mp_face_detection = mp.solutions.face_detection
+    mp_face_mesh = mp.solutions.face_mesh
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"Error: Could not open video at {video_path}")
+        return None, None, None, None
+
+    if display:
+        cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+
+    if testing:
+        os.makedirs(test_output_dir, exist_ok=True)
+
+    R, G, B = [], [], []
+    timestamps = []
+    frame_count = 0
+
+    tracker = None
+    init_tracker = False
+
+    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7) as face_detector, \
+         mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.7) as face_mesh:
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            
+
+            h, w, _ = frame.shape
+            crop_frame = frame
+            crop_coords = None
+            landmarks = None
+
+            if crop_mode == 'manual':
+                crop_frame = frame[y1:y2, x1:x2]
+                crop_coords = (x1, y1, x2, y2)
+                
+
+            elif crop_mode == 'none':
+                crop_frame = frame
+
+            elif crop_mode == 'face_track':
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                if not init_tracker:
+                    results = face_detector.process(rgb)
+                    if results.detections:
+                        bbox = results.detections[0].location_data.relative_bounding_box
+                        x = int(bbox.xmin * w)
+                        y = int(bbox.ymin * h)
+                        width = int(bbox.width * w)
+                        height = int(bbox.height * h)
+
+                        margin_x = int(width * 0.2)
+                        margin_y = int(height * 0.3)
+                        
+                        tracker = cv2.TrackerKCF_create()
+                        tracker.init(frame, (x, y, width, height))
+                        init_tracker = True
+                        
+                        x1 = max(0, x)
+                        y1 = max(0, y - margin_y)
+                        x2 = min(w, x + width)
+                        y2 = min(h, y + height)
+                        crop_frame = frame[y1:y2, x1:x2]
+                        crop_coords = (x1, y1, x2, y2)
+                    else:
+                        continue
+                else:
+                    success, box = tracker.update(frame)
+                    if success:
+                        x, y, width, height = map(int, box)
+                        margin_x = int(width * 0.2)
+                        x1 = max(0, x )
+                        y1 = max(0, y - margin_y)
+                        x2 = min(w, x + width)
+                        y2 = min(h, y + height)
+                        crop_frame = frame[y1:y2, x1:x2]
+                        crop_coords = (x1, y1, x2, y2)
+                    else:
+                        continue
+
+            elif crop_mode == 'bbox_forehead':
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = face_detector.process(rgb)
+                if results.detections:
+                    x1_f, y1_f, x2_f, y2_f = get_bbox_forehead(frame, results.detections[0])
+                    crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
+                    crop_coords = (x1_f, y1_f, x2_f, y2_f)
+                else:
+                    continue
+
+            elif crop_mode == 'mesh_forehead':
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = face_mesh.process(rgb)
+                if results.multi_face_landmarks:
+                    x1_f, y1_f, x2_f, y2_f = get_mesh_forehead(frame, results.multi_face_landmarks[0])
+                    crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
+                    crop_coords = (x1_f, y1_f, x2_f, y2_f)
+                    landmarks = [(int(lm.x * w), int(lm.y * h)) for lm in results.multi_face_landmarks[0].landmark]
+                else:
+                    continue
+
+            else:
+                raise ValueError(f"Invalid crop_mode: {crop_mode}")
+
+            # ---- Average immediately instead of storing frame ----
+            B.append(crop_frame[:, :, 0].mean())
+            G.append(crop_frame[:, :, 1].mean())
+            R.append(crop_frame[:, :, 2].mean())
+            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+            timestamps.append(timestamp)
+            frame_count += 1
+
+            if testing and frame_count <= 300:
+                mode_dir = os.path.join(test_output_dir, crop_mode)
+                os.makedirs(mode_dir, exist_ok=True)
+                debug_frame = draw_debug_overlay(frame, crop_mode, crop_coords, landmarks)
+                save_debug = os.path.join(mode_dir, f"{crop_mode}_frame_{frame_count:03d}.jpg")
+                cv2.imwrite(save_debug, debug_frame)
+
+            if testing and frame_count >= 300:
+                break
+
+            if display:
+                cv2.imshow('frame', crop_frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+    cap.release()
+    if display:
+        cv2.destroyAllWindows()
+
+    return np.array(R), np.array(G), np.array(B), np.array(timestamps)
