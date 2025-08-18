@@ -7,14 +7,13 @@ import src.extract_wave as ext
 import argparse
 import sys
 import os
+import src.plotter as plotter
 from src.config import Video 
 from src.config import Signal
-from sklearn.decomposition import PCA
-from scipy.interpolate import interp1d
 import pandas as pd
 
 
-def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = True):
+def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = False):
     output_path = r"outputs"  
     folder_path = r"data\Dataset1"
     csv_path = r"data\CSVFiles\Settings.csv"
@@ -23,27 +22,14 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
     for filename, x1, y1, x2, y2 in crop_list:
 
         video_path = os.path.join(folder_path, filename)
-        #video_array, time_array = VE.extract_video_to_array(video_path, x1, y1, x2, y2, crop_mode, Display, Testing)  # Shape: (num_frames, height, width, channels) (Blue Green Red)
-        #R_signal, G_signal, B_signal = ext.extract_rgb_signals_BGR(video_array)
         R_signal, G_signal, B_signal, time_array = VE.extract_video_to_rgb(video_path, x1, y1, x2, y2, crop_mode, Display, Testing)
-        #test.render_frame(video_array[0])
+
         
         if interpolate:
-            R_signal , t_uniform = interpolate_signal_with_timestamps(R_signal, time_array) 
-            B_signal , t_uniform = interpolate_signal_with_timestamps(B_signal, time_array)
-            #plt.figure()
-            #plt.plot(time_array, G_signal, 'o-', label='Original G (raw)')
-            G_signal , t_uniform = interpolate_signal_with_timestamps(G_signal, time_array)
-            #plt.plot(t_uniform, G_signal, '-x', label='Interpolated G (35 Hz)')
-            #plt.xlabel('Time (s)')
-            #plt.ylabel('Green Signal')
-            #plt.legend()
-            #plt.title('Raw vs Interpolated Green Signal')
-            #plt.show()
-        #G_signal = ext.bandpass_filter(G_signal, Video.FPS)
-        #R_signal = ext.bandpass_filter(R_signal, Video.FPS)
-        #B_signal = ext.bandpass_filter(B_signal, Video.FPS)
-
+            R_signal , t_uniform = ext.interpolate_signal_with_timestamps(R_signal, time_array) 
+            B_signal , t_uniform = ext.interpolate_signal_with_timestamps(B_signal, time_array)
+            G_signal , t_uniform = ext.interpolate_signal_with_timestamps(G_signal, time_array)
+    
         signals = {}
 
         if 'R' in channels or 'ALL' in channels:
@@ -62,12 +48,12 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
             signals['GREY_A'] = (R_signal + G_signal + B_signal) / 3.0
 
         if 'PCA' in channels or 'ALL' in channels:
-            pca_components = extract_pca_components(R_signal, G_signal, B_signal)
+            pca_components = ext.extract_pca_components(R_signal, G_signal, B_signal)
             for i in range(min(3, pca_components.shape[1])):
                 signals[f'PCA_{i+1}'] = pca_components[:, i]
 
         if 'ZCA' in channels or 'ALL' in channels:
-            zca_components = zca_whiten(R_signal, G_signal, B_signal)
+            zca_components = ext.zca_whiten(R_signal, G_signal, B_signal)
             for i in range(min(3, zca_components.shape[1])):
                 signals[f'ZCA_{i+1}'] = zca_components[:, i]
 
@@ -76,251 +62,14 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
             if apply_bandpass:
                 signal_data = ext.bandpass_filter(signal_data, Video.FPS)
 
-            #plot_signal(signal_data, label)
+            plotter.plot_signal(signal_data, label)
             #bpm_over_time(signal_data, label)
 
    # plot_signal(G_signal)
    # bpm_over_time(G_signal)
 
-def summarize_results(signals_dict, fps=Video.FPS, ground_truth_bpm=None,
-                      save_csv=True, output_file="rppg_results.csv"):
-    """
-    Summarizes BPM estimation results for each signal channel, 
-    generates plots, and optionally saves as CSV.
-    """
-    results = []
-
-    for label, sig in signals_dict.items():
-        # FFT-based BPM estimation
-        n = len(sig)
-        fhat = np.fft.fft(sig)
-        freqs = np.fft.fftfreq(n, d=1 / fps)
-        power_spec = np.abs(fhat)**2 / n
-
-        pos = freqs > 0
-        freqs = freqs[pos]
-        power_spec = power_spec[pos]
-
-        hr_band = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
-        peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
-        bpm_est = peak_freq * 60
-
-        row = {"Channel": label, "Estimated_BPM": bpm_est}
-
-        # If ground truth available, compute metrics
-        if ground_truth_bpm is not None:
-            gt = np.array(ground_truth_bpm)
-            mae = np.mean(np.abs(bpm_est - gt))
-            rmse = np.sqrt(np.mean((bpm_est - gt) ** 2))
-            row["MAE"] = mae
-            row["RMSE"] = rmse
-
-        results.append(row)
-
-    results_df = pd.DataFrame(results)
-    print("\n=== RPPG Results Summary ===")
-    print(results_df)
-
-    if save_csv:
-        results_df.to_csv(output_file, index=False)
-        print(f"Saved results to {output_file}")
-
-    # ==== Plot MAE per channel (if GT available) ====
-    if ground_truth_bpm is not None and "MAE" in results_df.columns:
-        plt.figure(figsize=(8, 5))
-        plt.bar(results_df["Channel"], results_df["MAE"], color="skyblue")
-        plt.ylabel("MAE (BPM)")
-        plt.title("Mean Absolute Error per Channel")
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-        plt.show()
-
-        # ==== Bland–Altman plots ====
-        for label, sig in signals_dict.items():
-            n = len(sig)
-            fhat = np.fft.fft(sig)
-            freqs = np.fft.fftfreq(n, d=1 / fps)
-            pos = freqs > 0
-            freqs = freqs[pos]
-            power_spec = np.abs(fhat)**2 / n
-            hr_band = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
-            peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
-            bpm_est = peak_freq * 60
-
-            avg_vals = (bpm_est + np.array(ground_truth_bpm)) / 2
-            diff_vals = bpm_est - np.array(ground_truth_bpm)
-
-            mean_diff = np.mean(diff_vals)
-            loa = 1.96 * np.std(diff_vals)
-
-            plt.figure(figsize=(6, 5))
-            plt.scatter(avg_vals, diff_vals, alpha=0.6)
-            plt.axhline(mean_diff, color='red', linestyle='--', label=f'Mean Bias: {mean_diff:.2f}')
-            plt.axhline(mean_diff + loa, color='gray', linestyle='--', label=f'+1.96 SD')
-            plt.axhline(mean_diff - loa, color='gray', linestyle='--', label=f'-1.96 SD')
-            plt.title(f"Bland–Altman Plot - {label}")
-            plt.xlabel("Average BPM")
-            plt.ylabel("Difference (Est - GT)")
-            plt.legend()
-            plt.grid(True, linestyle='--', alpha=0.6)
-            plt.show()
-
-    return results_df
-
-def zca_whiten(R, G, B, epsilon=1e-5):
-    signal_matrix = np.vstack((R, G, B)).T  # shape (time, channels)
-    
-    # Center the data
-    X = signal_matrix - np.mean(signal_matrix, axis=0)
-    
-    # Compute covariance
-    sigma = np.cov(X, rowvar=False)
-    
-    # Eigen-decomposition
-    U, S, _ = np.linalg.svd(sigma)
-    
-    # ZCA Whitening matrix
-    ZCA_matrix = U @ np.diag(1.0 / np.sqrt(S + epsilon)) @ U.T
-    X_zca = X @ ZCA_matrix.T
-    
-    return X_zca  # shape (time, 3)
-
-def interpolate_signal_with_timestamps(signal, timestamps, target_fps=35):
-    start_time = timestamps[0]
-    end_time = timestamps[-1]
-    duration = end_time - start_time
-
-    # 1. Create a uniform time grid (target sampling points)
-    num_target_samples = int(duration * target_fps)
-    t_target = np.linspace(start_time, end_time, num_target_samples)
-
-    # 2. Create interpolation function from the original data
-    interp_func = interp1d(timestamps, signal, kind='linear', fill_value="extrapolate")
-
-    # 3. Evaluate the interpolation function at the uniform time points
-    interpolated_signal = interp_func(t_target)
-
-    return interpolated_signal, t_target
-
-def extract_pca_components(R, G, B, n_components=3):
-    signal_matrix = np.vstack((R, G, B)).T
-    pca = PCA(n_components=n_components)
-    components = pca.fit_transform(signal_matrix)
-    print("PCA explained variance ratio:", pca.explained_variance_ratio_)
-    return components
-
-def plot_signals(G_signal, R_signal, B_signal):
-    fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
-
-     # Red channel
-    axs[0].plot(R_signal, color='red')
-    axs[0].set_title('Red Channel Average Intensity')
-    axs[0].set_ylabel('Intensity')
-
-    # Green channel
-    axs[1].plot(G_signal, color='green')
-    axs[1].set_title('Green Channel Average Intensity')
-    axs[1].set_ylabel('Intensity')
-
-    # Blue channel
-    axs[2].plot(B_signal, color='blue')
-    axs[2].set_title('Blue Channel Average Intensity')
-    axs[2].set_ylabel('Intensity')
-    axs[2].set_xlabel('Frame')
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_signal(signal_processed, label):
-    dt = 1 / Video.FPS
-    n = len(signal_processed)
-    time = np.arange(n) / Video.FPS
-
-    # Compute FFT
-    fhat = np.fft.fft(signal_processed)
-    freqs = np.fft.fftfreq(n, d=dt)
-    power_spec = np.abs(fhat)**2 / n
-
-    # Keep only positive frequencies
-    pos_mask = freqs > 0
-    freqs = freqs[pos_mask]
-    fft_mag = np.abs(fhat)[pos_mask]
-    power_spec = power_spec[pos_mask]
 
 
-    hr_band = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
-    peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
-    bpm = peak_freq * 60
-
-    fig, axs = plt.subplots(3, 1, figsize=(12, 10))
-
-    # 1. Original signal
-    axs[0].plot(time, signal_processed, color='black')
-    axs[0].set_title(f"1. Time Signal - {label}")
-    axs[0].set_xlabel("Time (s)")
-    axs[0].set_ylabel("Intensity")
-
-    # 2. FFT
-    axs[1].plot(freqs, fft_mag, color='purple')
-    axs[1].set_xlim(0, 5)
-    axs[1].set_title(f"2. FFT Magnitude Spectrum - {label}")
-    axs[1].set_xlabel("Frequency (Hz)")
-    axs[1].set_ylabel("Amplitude")
-
-    # 3. Power Spectrum
-    axs[2].plot(freqs, power_spec, color='orange')
-    axs[2].axvline(peak_freq, color='red', linestyle='--', label=f'Peak: {peak_freq:.2f} Hz ({bpm:.1f} BPM)')
-    axs[2].set_xlim(0, 5)
-    axs[2].set_title(f"3. Power Spectrum - {label}")
-    axs[2].set_xlabel("Frequency (Hz)")
-    axs[2].set_ylabel("Power")
-    axs[2].legend()
-
-    plt.tight_layout()
-    plt.show()
-
-    print(f"Estimated Heart Rate: {bpm:.2f} BPM")
-
-
-def bpm_over_time(signal_processed, label):
-    window_size_sec = 10
-    window_size = int(window_size_sec * Video.FPS)
-    step_size = window_size // 2
-
-    bpm_list = []
-    time_bins = []
-
-    for start in range(0, len(signal_processed) - window_size + 1, step_size):
-        segment = signal_processed[start:start + window_size]
-        segment = segment * np.hamming(len(segment))  # Apply Hamming window
-
-        n = len(segment)
-        fhat = np.fft.fft(segment)
-        freqs = np.fft.fftfreq(n, d=1 / Video.FPS)
-        power_spec = np.abs(fhat)**2 / n
-        
-        pos = freqs > 0
-        freqs = freqs[pos]
-        power_spec = power_spec[pos]
-        
-        # Heart rate band mask
-        hr_band = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
-        peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
-        bpm = peak_freq * 60
-        
-        bpm_list.append(bpm)
-        time_bins.append(start / Video.FPS)  # time in seconds for the bin start
-
-    # Calculate average BPM
-    avg_bpm = np.mean(bpm_list) if bpm_list else 0
-
-    # Plot heart rate over time
-    plt.plot(time_bins, bpm_list, label='BPM Over Time', color='blue')
-    plt.axhline(y=avg_bpm, color='red', linestyle='--', label=f'Average BPM: {avg_bpm:.2f}')
-    plt.xlabel(f"Time - {label}")
-    plt.ylabel('Heart Rate (BPM)')
-    plt.title(f"Heart Rate Over Time - {label}")
-    plt.legend()
-    plt.show()
 
 # example usage python main.py --channels G R --face_tracking
 def main():

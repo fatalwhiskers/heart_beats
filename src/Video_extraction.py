@@ -279,9 +279,6 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
             ret, frame = cap.read()
             if not ret:
                 break
-
-            
-
             h, w, _ = frame.shape
             crop_frame = frame
             crop_coords = None
@@ -306,8 +303,8 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
                     width = int(bbox.width * w)
                     height = int(bbox.height * h)
 
-                    margin_x = int(width * 0.2)
-                    margin_y = int(height * 0.3)
+                    margin_x = int(width * 0.1)
+                    margin_y = int(height * 0.2)
 
                     x1 = max(0, x - margin_x)
                     y1 = max(0, y - margin_y)
@@ -323,9 +320,9 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results = face_detector.process(rgb)
                 if results.detections:
-                    x1_f, y1_f, x2_f, y2_f = get_bbox_forehead(frame, results.detections[0])
-                    crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
-                    crop_coords = (x1_f, y1_f, x2_f, y2_f)
+                    x1, y1, x2, y2 = get_bbox_forehead(frame, results.detections[0])
+                    crop_frame = frame[y1:y2, x1:x2]
+                    crop_coords = (x1, y1, x2, y2)
                 else:
                     continue
 
@@ -333,9 +330,9 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results = face_mesh.process(rgb)
                 if results.multi_face_landmarks:
-                    x1_f, y1_f, x2_f, y2_f = get_mesh_forehead(frame, results.multi_face_landmarks[0])
-                    crop_frame = frame[y1_f:y2_f, x1_f:x2_f]
-                    crop_coords = (x1_f, y1_f, x2_f, y2_f)
+                    x1, y1, x2, y2 = get_mesh_forehead(frame, results.multi_face_landmarks[0])
+                    crop_frame = frame[y1:y2, x1:x2]
+                    crop_coords = (x1, y1, x2, y2)
                     landmarks = [(int(lm.x * w), int(lm.y * h)) for lm in results.multi_face_landmarks[0].landmark]
                 else:
                     continue
