@@ -14,7 +14,7 @@ from scipy.interpolate import interp1d
 import pandas as pd
 
 
-def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, Display = False, Testing = True):
+def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = True):
     output_path = r"outputs"  
     folder_path = r"data\Dataset1"
     csv_path = r"data\CSVFiles\Settings.csv"
@@ -47,43 +47,37 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
         signals = {}
 
         if 'R' in channels or 'ALL' in channels:
-            signals['R'] = ext.bandpass_filter(R_signal, Video.FPS)
+            signals['R'] = R_signal
 
         if 'G' in channels or 'ALL' in channels:
-            signals['G'] = ext.bandpass_filter(G_signal, Video.FPS)
+            signals['G'] = G_signal
 
         if 'B' in channels or 'ALL' in channels:
-            signals['B'] = ext.bandpass_filter(B_signal, Video.FPS)
+            signals['B'] = B_signal
 
         if 'GREY_W' in channels or 'ALL' in channels:
-            gray_w = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
-            gray_w = ext.bandpass_filter(gray_w, Video.FPS)
-            signals['GREY_W'] = gray_w
+            signals['GREY_W'] = 0.2989 * R_signal + 0.5870 * G_signal + 0.1140 * B_signal
 
         if 'GREY_A' in channels or 'ALL' in channels:
-            gray_a = (R_signal + G_signal + B_signal) / 3.0
-            gray_a = ext.bandpass_filter(gray_a, Video.FPS)
-            signals['GREY_A'] = gray_a
+            signals['GREY_A'] = (R_signal + G_signal + B_signal) / 3.0
 
         if 'PCA' in channels or 'ALL' in channels:
             pca_components = extract_pca_components(R_signal, G_signal, B_signal)
             for i in range(min(3, pca_components.shape[1])):
-                signals[f'PCA_{i+1}'] = ext.bandpass_filter(pca_components[:, i], Video.FPS)
+                signals[f'PCA_{i+1}'] = pca_components[:, i]
 
         if 'ZCA' in channels or 'ALL' in channels:
             zca_components = zca_whiten(R_signal, G_signal, B_signal)
             for i in range(min(3, zca_components.shape[1])):
-                signals[f'ZCA_{i+1}'] = ext.bandpass_filter(zca_components[:, i], Video.FPS)
+                signals[f'ZCA_{i+1}'] = zca_components[:, i]
 
 
-            # loop though signals
+        for label, signal_data in signals.items():
+            if apply_bandpass:
+                signal_data = ext.bandpass_filter(signal_data, Video.FPS)
 
-            for label, signal_data in signals.items():
-                print(f"\nAnalyzing signal: {label}")
-            # print("Correlation:", np.corrcoef(G_signal, gray_w)[0, 1])
-                print("First 5 values:", signal_data[:5])
-                plot_signal(signal_data, label)
-                bpm_over_time(signal_data, label)
+            #plot_signal(signal_data, label)
+            #bpm_over_time(signal_data, label)
 
    # plot_signal(G_signal)
    # bpm_over_time(G_signal)

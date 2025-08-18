@@ -272,9 +272,6 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
     timestamps = []
     frame_count = 0
 
-    tracker = None
-    init_tracker = False
-
     with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7) as face_detector, \
          mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.7) as face_mesh:
 
@@ -300,44 +297,27 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
 
             elif crop_mode == 'face_track':
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = face_detector.process(rgb)
 
-                if not init_tracker:
-                    results = face_detector.process(rgb)
-                    if results.detections:
-                        bbox = results.detections[0].location_data.relative_bounding_box
-                        x = int(bbox.xmin * w)
-                        y = int(bbox.ymin * h)
-                        width = int(bbox.width * w)
-                        height = int(bbox.height * h)
+                if results.detections:
+                    bbox = results.detections[0].location_data.relative_bounding_box
+                    x = int(bbox.xmin * w)
+                    y = int(bbox.ymin * h)
+                    width = int(bbox.width * w)
+                    height = int(bbox.height * h)
 
-                        margin_x = int(width * 0.2)
-                        margin_y = int(height * 0.3)
-                        
-                        tracker = cv2.TrackerKCF_create()
-                        tracker.init(frame, (x, y, width, height))
-                        init_tracker = True
-                        
-                        x1 = max(0, x)
-                        y1 = max(0, y - margin_y)
-                        x2 = min(w, x + width)
-                        y2 = min(h, y + height)
-                        crop_frame = frame[y1:y2, x1:x2]
-                        crop_coords = (x1, y1, x2, y2)
-                    else:
-                        continue
+                    margin_x = int(width * 0.2)
+                    margin_y = int(height * 0.3)
+
+                    x1 = max(0, x - margin_x)
+                    y1 = max(0, y - margin_y)
+                    x2 = min(w, x + width + margin_x)
+                    y2 = min(h, y + height + margin_y)
+
+                    crop_frame = frame[y1:y2, x1:x2]
+                    crop_coords = (x1, y1, x2, y2)
                 else:
-                    success, box = tracker.update(frame)
-                    if success:
-                        x, y, width, height = map(int, box)
-                        margin_x = int(width * 0.2)
-                        x1 = max(0, x )
-                        y1 = max(0, y - margin_y)
-                        x2 = min(w, x + width)
-                        y2 = min(h, y + height)
-                        crop_frame = frame[y1:y2, x1:x2]
-                        crop_coords = (x1, y1, x2, y2)
-                    else:
-                        continue
+                    continue
 
             elif crop_mode == 'bbox_forehead':
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -371,14 +351,15 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
             timestamps.append(timestamp)
             frame_count += 1
 
-            if testing and frame_count <= 300:
-                mode_dir = os.path.join(test_output_dir, crop_mode)
+            if testing and frame_count <= 60:
+                video_name = os.path.splitext(os.path.basename(video_path))[0]
+                mode_dir = os.path.join(test_output_dir, video_name, crop_mode)
                 os.makedirs(mode_dir, exist_ok=True)
                 debug_frame = draw_debug_overlay(frame, crop_mode, crop_coords, landmarks)
-                save_debug = os.path.join(mode_dir, f"{crop_mode}_frame_{frame_count:03d}.jpg")
+                save_debug = os.path.join(mode_dir, f"{crop_mode}_frame_{frame_count:03d}_{video_name}.jpg")
                 cv2.imwrite(save_debug, debug_frame)
 
-            if testing and frame_count >= 300:
+            if testing and frame_count >= 60:
                 break
 
             if display:
