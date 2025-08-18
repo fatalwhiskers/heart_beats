@@ -1,16 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import src.video_reader as vr
-import src.Video_extraction as VE
 import test as test
-import src.extract_wave as ext
-import argparse
-import sys
-import os
 from src.config import Video 
 from src.config import Signal
-from sklearn.decomposition import PCA
-from scipy.interpolate import interp1d
 import pandas as pd
 
 def plot_signal(signal_processed, label):
@@ -212,3 +204,73 @@ def summarize_results(signals_dict, fps=Video.FPS, ground_truth_bpm=None,
             plt.show()
 
     return results_df
+
+def plot_signal_sliding_powerweight(signal_processed, label, fps=35,
+                                    hr_low=0.7, hr_high=4.0,
+                                    window_size=10, step_size=1):
+    """
+    Sliding window HR estimation using power-weighted frequency.
+    Assumes signal_processed is already filtered.
+    """
+    n_samples = len(signal_processed)
+    time = np.arange(n_samples) / fps
+
+    # Sliding window parameters
+    win_samples = int(window_size * fps)
+    step_samples = int(step_size * fps)
+    
+    times_hr = []
+    hr_estimates = []
+    
+    for start in range(0, n_samples - win_samples + 1, step_samples):
+        segment = signal_processed[start:start + win_samples]
+        windowed = segment * np.hanning(win_samples)
+        
+        # FFT
+        fhat = np.fft.fft(windowed)
+        freqs = np.fft.fftfreq(win_samples, d=1/fps)
+        power = np.abs(fhat)**2 / win_samples
+        
+        # Positive frequencies
+        pos_mask = freqs > 0
+        freqs_pos = freqs[pos_mask]
+        power_pos = power[pos_mask]
+        
+        # Heart rate band
+        hr_mask = (freqs_pos >= hr_low) & (freqs_pos <= hr_high)
+        freqs_hr = freqs_pos[hr_mask]
+        power_hr = power_pos[hr_mask]
+        
+        if len(power_hr) > 0 and np.sum(power_hr) > 0:
+            # Power-weighted mean frequency
+            peak_freq = np.sum(freqs_hr * power_hr) / np.sum(power_hr)
+            bpm = peak_freq * 60
+            hr_estimates.append(bpm)
+            times_hr.append(start / fps + window_size / 2)
+        else:
+            hr_estimates.append(np.nan)
+            times_hr.append(start / fps + window_size / 2)
+    
+    # Plot
+    fig, axs = plt.subplots(2, 1, figsize=(12, 8))
+    
+    # Time-domain signal with HR overlay
+    axs[0].plot(time, signal_processed, color='black', label='rPPG signal')
+    axs[0].set_xlabel("Time (s)")
+    axs[0].set_ylabel("Intensity")
+    axs[0].set_title(f"Time-domain Signal with Sliding HR - {label}")
+    axs[0].twinx().plot(times_hr, hr_estimates, 'r-o', label='HR (BPM)')
+    axs[0].set_ylabel("Heart Rate (BPM)")
+    axs[0].legend(loc='upper right')
+    
+    # HR over time
+    axs[1].plot(times_hr, hr_estimates, 'r-o')
+    axs[1].set_xlabel("Time (s)")
+    axs[1].set_ylabel("Heart Rate (BPM)")
+    axs[1].set_title("Estimated Heart Rate Over Time")
+    axs[1].grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return times_hr, hr_estimates

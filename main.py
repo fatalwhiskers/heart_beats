@@ -1,16 +1,13 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import src.video_reader as vr
 import src.Video_extraction as VE
+import src.plotter as plotter
 import test as test
 import src.extract_wave as ext
 import argparse
 import sys
 import os
-import src.plotter as plotter
+
 from src.config import Video 
-from src.config import Signal
-import pandas as pd
 
 
 def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = False):
@@ -62,14 +59,11 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
             if apply_bandpass:
                 signal_data = ext.bandpass_filter(signal_data, Video.FPS)
 
-            plotter.plot_signal(signal_data, label)
+            plotter.plot_signal_sliding_powerweight(signal_data, label)
             #bpm_over_time(signal_data, label)
 
    # plot_signal(G_signal)
    # bpm_over_time(G_signal)
-
-
-
 
 # example usage python main.py --channels G R --face_tracking
 def main():
@@ -92,8 +86,8 @@ def main():
         "face_track - detect face once then track with KCF\n"
         "bbox_forehead - crop to forehead region using detection bbox\n"
         "mesh_forehead - crop to forehead using mesh landmarks"
+        )
     )
-)
 
     # Only parse args if they exist (i.e., from command line)
     if len(sys.argv) > 1:
@@ -103,7 +97,7 @@ def main():
         args = parser.parse_args(args=[])
 
         # Optional: manually override for testing here
-        args.channels = ['G', 'PCA' , 'ZCA']
+        #args.channels = ['G', 'PCA' , 'ZCA']
         args.crop_mode = 'face_track' 
         #args.face_tracking = False
 
