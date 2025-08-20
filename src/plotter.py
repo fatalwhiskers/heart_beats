@@ -4,23 +4,44 @@ import test as test
 from src.config import Video 
 from src.config import Signal
 import pandas as pd
+from scipy.signal import welch, medfilt, savgol_filter, get_window, find_peaks
 
-def plot_signal(signal_processed, label):
+FPS: int = 35
+HR_LOW: float = 0.7      # Hz   (45 bpm)
+HR_HIGH: float = 3.0      # Hz  (180 bpm)
+
+def run(signal_processed, label):
+    #plot_signal_poer(signal_processed, label)
+    #estimate_hr_rppg(signal_processed, label)
+    estimate_hr_sliding(signal_processed, label)
+    #plot_power_spectrum(signal_processed, label)
+
+def plot_signal_poer(signal_processed, label, Raw = False):
     dt = 1 / Video.FPS
     n = len(signal_processed)
     time = np.arange(n) / Video.FPS
 
-    # Compute FFT
-    fhat = np.fft.fft(signal_processed)
-    freqs = np.fft.fftfreq(n, d=dt)
-    power_spec = np.abs(fhat)**2 / n
+    if Raw:
+        # --- Raw FFT ---
+        fhat = np.fft.fft(signal_processed)
+        freqs = np.fft.fftfreq(n, d=dt)
+        power_spec = np.abs(fhat)**2 / n
 
-    # Keep only positive frequencies
+    else:
+        # --- Windowed FFT with zero-padding ---
+        window = np.hamming(n)
+        signal_win = signal_processed * window
+        n_fft = 2**int(np.ceil(np.log2(n*4)))  # 4x zero-padding
+
+        fhat = np.fft.fft(signal_win, n=n_fft)
+        freqs = np.fft.fftfreq(n_fft, d=dt)
+        power_spec = (np.abs(fhat)**2 / n)
+
+    
     pos_mask = freqs > 0
     freqs = freqs[pos_mask]
     fft_mag = np.abs(fhat)[pos_mask]
     power_spec = power_spec[pos_mask]
-
 
     hr_band = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
     peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
@@ -52,6 +73,245 @@ def plot_signal(signal_processed, label):
 
     plt.tight_layout()
     plt.show()
+
+def plot_power_spectrum(signal_processed, label="rPPG Signal"):
+
+    n = len(signal_processed)
+    dt = 1 / FPS
+    time = np.arange(n) / FPS
+
+
+    # Welch’s method (smoother PSD)
+    freqs, power_spec = welch(signal_processed, fs=FPS, nperseg=min(1024, n))
+    fft_mag = np.sqrt(power_spec) 
+    
+
+    # Heart rate band
+    hr_band = (freqs >= HR_LOW) & (freqs <= HR_HIGH)
+    peak_freq = freqs[hr_band][np.argmax(power_spec[hr_band])]
+    bpm = peak_freq * 60
+
+    # Plotting
+    fig, axs = plt.subplots(3, 1, figsize=(12, 10))
+
+    # 1. Time Signal
+    axs[0].plot(time, signal_processed, color='green')
+    axs[0].set_title(f"1. Filtered Signal (Time Domain) - {label}")
+    axs[0].set_xlabel("Time (s)")
+    axs[0].set_ylabel("Intensity")
+
+    # 2. FFT Magnitude
+    axs[1].plot(freqs, fft_mag, color='purple')
+    axs[1].set_xlim(0, 5)
+    axs[1].set_title(f"2. FFT Magnitude Spectrum - {label}")
+    axs[1].set_xlabel("Frequency (Hz)")
+    axs[1].set_ylabel("Amplitude")
+
+    # 3. Power Spectrum
+    axs[2].plot(freqs, power_spec, color='orange')
+    axs[2].axvline(peak_freq, color='red', linestyle='--',
+                   label=f'Peak: {peak_freq:.2f} Hz ({bpm:.1f} BPM)')
+    axs[2].set_xlim(0, 5)
+    axs[2].set_title(f"3. Power Spectrum - {label}")
+    axs[2].set_xlabel("Frequency (Hz)")
+    axs[2].set_ylabel("Power")
+    axs[2].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    return peak_freq, bpm
+
+def estimate_hr_rppg(signal, label="rPPG",
+                     spike_k=9, spike_nsigma=3.0,
+                     detrend_sec=3.0, detrend_poly=3,
+                     welch_seg_sec=8.0, welch_overlap=0.5,
+                     harmonic_weights=(1.0, 0.5, 0.25),
+                     smooth_bins=3,
+                     plot=False):
+
+    x = np.asarray(signal, dtype=float)
+    n = len(x)
+    if n < 256:
+        raise ValueError("Signal too short (<256 samples).")
+
+    # ----- 1) Spike removal (Hampel) -----
+    k = int(spike_k) | 1  # ensure odd
+    med = medfilt(x, kernel_size=k)
+    diff = x - med
+    mad = medfilt(np.abs(diff), kernel_size=k)
+    sigma = 1.4826 * mad
+    mask = np.abs(diff) > spike_nsigma * (sigma + 1e-12)
+    x_spikefree = x.copy()
+    x_spikefree[mask] = med[mask]
+
+    # ----- 2) Detrend & normalize -----
+    win_len = max(5, int(round(detrend_sec * FPS)) | 1)           # odd
+    win_len = min(win_len, n - (1 - (n % 2)))                     # <= n-1 and odd
+    trend = savgol_filter(x_spikefree, win_len, detrend_poly)
+    x_dt = x_spikefree - trend
+    x_dt = (x_dt - np.median(x_dt)) / (np.std(x_dt) + 1e-8)
+
+    # ----- 3) Welch PSD (Hann) -----
+    seg = max(256, int(round(welch_seg_sec * FPS)))
+    seg = min(seg, n)
+    nover = int(seg * np.clip(welch_overlap, 0, 0.95))
+    window = get_window('hann', seg)
+    freqs, psd = welch(x_dt, fs=FPS, nperseg=seg, noverlap=nover, window=window)
+
+    # keep positive freqs (welch already does, but be explicit)
+    pos = freqs > 0
+    freqs, psd = freqs[pos], psd[pos]
+
+    # ----- 4) Harmonic-sum selector -----
+    band = (freqs >= HR_LOW) & (freqs <= HR_HIGH)
+    f_band = freqs[band]
+    P_band = psd[band]
+    if len(f_band) < 5:
+        raise ValueError("Not enough frequency bins in HR band; adjust hr_low/high or seg length.")
+
+    # small smoothing inside band
+    if smooth_bins and smooth_bins > 1:
+        k = int(smooth_bins)
+        ker = np.ones(k) / k
+        P_band = np.convolve(P_band, ker, mode="same")
+
+    # build harmonic-sum curve
+    H = np.zeros_like(P_band)
+    for h, w in enumerate(harmonic_weights, start=1):
+        H += w * np.interp(h * f_band, freqs, psd, left=0.0, right=0.0)
+
+    idx = int(np.argmax(H))
+    f0 = float(f_band[idx])
+
+    # optional subharmonic safety check
+    f_half = f0 / 2.0
+    if f_half >= HR_LOW:
+        score_f0   = np.interp(f0,   f_band, H)
+        score_half = np.interp(f_half, f_band, H)
+        if score_half > 1.1 * score_f0:  # 10% margin
+            f0 = f_half
+
+    bpm = f0 * 60.0
+
+
+    t = np.arange(n) / FPS
+    fig, axs = plt.subplots(3, 1, figsize=(12, 9))
+    axs[0].plot(t, x, label="orig", alpha=0.4)
+    axs[0].plot(t, x_spikefree, label="spikefree", linewidth=1)
+    axs[0].plot(t, trend, label="trend", linewidth=1)
+    axs[0].set_title(f"1) Time Signal - {label}")
+    axs[0].set_xlabel("Time (s)"); axs[0].set_ylabel("Intensity"); axs[0].legend(loc="upper right")
+
+    axs[1].plot(freqs, psd)
+    axs[1].axvspan(HR_LOW, HR_HIGH, alpha=0.1)
+    axs[1].set_xlim(0, 5)
+    axs[1].set_title(f"2) Welch PSD - {label}")
+    axs[1].set_xlabel("Frequency (Hz)"); axs[1].set_ylabel("Power")
+
+    axs[2].plot(f_band, H, label="Harmonic-sum")
+    axs[2].axvline(f0, linestyle="--", label=f"{f0:.2f} Hz  ({bpm:.1f} BPM)")
+    axs[2].set_xlim(0, 5)
+    axs[2].set_title("3) Harmonic-Sum Score (HR band)")
+    axs[2].set_xlabel("Frequency (Hz)"); axs[2].set_ylabel("Score"); axs[2].legend()
+    plt.tight_layout()
+    plt.show()
+
+    return bpm, f0, freqs, psd
+
+def estimate_hr_sliding(signal, label, fps=Video.FPS, window_size=15, step_size=5):
+
+    # Normalize (z-score)
+    signal = (signal - np.mean(signal)) / np.std(signal)
+
+    n = len(signal)
+    win_len = int(window_size * fps)
+    step_len = int(step_size * fps)
+    hann_win = np.hanning(win_len)
+
+    hr_values, times = [], []
+    psd_accum = []
+
+    for start in range(0, n - win_len, step_len):
+        segment = signal[start:start + win_len]
+        segment = segment * hann_win
+
+        # FFT
+        fft_vals = np.fft.rfft(segment)
+        freqs = np.fft.rfftfreq(win_len, d=1/fps)
+        power = np.abs(fft_vals) ** 2
+
+        # Restrict to HR band
+        mask = (freqs >= 0.7) & (freqs <= 4.0)
+        freqs_band, power_band = freqs[mask], power[mask]
+
+        # Normalize spectrum for averaging
+        power_band = power_band / np.max(power_band)
+        psd_accum.append(power_band)
+
+        # Power-weighted frequency (robust HR)
+        freq_est = np.sum(freqs_band * power_band) / np.sum(power_band)
+        bpm = freq_est * 60
+
+        hr_values.append(bpm)
+        times.append(start / fps)
+
+    # --- Averaged spectrum ---
+    avg_psd = np.mean(psd_accum, axis=0)
+
+    # Find peaks in averaged spectrum
+    peak_indices, _ = find_peaks(avg_psd, distance=5)  # min separation between peaks
+    peak_powers = avg_psd[peak_indices]
+    sorted_idx = np.argsort(peak_powers)[::-1]  # sort by power descending
+
+    # Take top 3
+    top_peaks = peak_indices[sorted_idx[:3]]
+    top_freqs = freqs_band[top_peaks]
+    top_bpms = top_freqs * 60
+
+    # Main HR = strongest peak
+    global_hr = top_bpms[0]
+
+    peak_colors = ['red', 'green', 'blue']  # one color per peak
+
+    fig, axs = plt.subplots(3, 1, figsize=(12, 10))
+
+    axs[0].plot(np.arange(len(signal)) / fps, signal, color='black')
+    axs[0].set_title("Preprocessed rPPG Signal")
+    axs[0].set_xlabel("Time (s)")
+    axs[0].set_ylabel("Normalized Intensity")
+
+    axs[1].plot(times, hr_values, 'o-r', label="Sliding HR")
+    axs[1].axhline(np.mean(hr_values), color='black', linestyle='--',
+                label=f"Mean HR = {np.mean(hr_values):.1f} BPM")
+    axs[1].axhline(np.median(hr_values), color='blue', linestyle='--',
+                label=f"Median HR = {np.median(hr_values):.1f} BPM")
+    axs[1].set_title("Sliding HR Over Time")
+    axs[1].legend()
+
+    axs[2].plot(freqs_band, avg_psd, color='orange')
+
+    # Plot each peak with its own color
+    for i, (f, bpm) in enumerate(zip(top_freqs, top_bpms)):
+        color = peak_colors[i % len(peak_colors)]  # cycle if more peaks than colors
+        axs[2].axvline(f, color=color, linestyle='--',
+                    label=f"Peak {i+1}: {f:.2f} Hz ({bpm:.1f} BPM)")
+
+    axs[2].set_xlim(0.5, 4.5)
+    axs[2].set_title("Averaged Power Spectrum (Top 3 Peaks)")
+    axs[2].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    return {
+        "sliding_hr": np.array(hr_values),
+        "times": np.array(times),
+        "mean_hr": np.mean(hr_values),
+        "median_hr": np.median(hr_values),
+        "global_hr": global_hr,
+        "top_peaks_bpm": top_bpms
+    }
 
 
 
@@ -205,19 +465,18 @@ def summarize_results(signals_dict, fps=Video.FPS, ground_truth_bpm=None,
 
     return results_df
 
-def plot_signal_sliding_powerweight(signal_processed, label, fps=35,
-                                    hr_low=0.7, hr_high=4.0,
-                                    window_size=10, step_size=1):
+def plot_signal_sliding_avg_median(signal_processed, label, window_size=10, step_size=1):
     """
     Sliding window HR estimation using power-weighted frequency.
+    Returns sliding HR values, average HR, and median HR.
     Assumes signal_processed is already filtered.
     """
     n_samples = len(signal_processed)
-    time = np.arange(n_samples) / fps
+    time = np.arange(n_samples) / FPS
 
     # Sliding window parameters
-    win_samples = int(window_size * fps)
-    step_samples = int(step_size * fps)
+    win_samples = int(window_size * FPS)
+    step_samples = int(step_size * FPS)
     
     times_hr = []
     hr_estimates = []
@@ -228,7 +487,7 @@ def plot_signal_sliding_powerweight(signal_processed, label, fps=35,
         
         # FFT
         fhat = np.fft.fft(windowed)
-        freqs = np.fft.fftfreq(win_samples, d=1/fps)
+        freqs = np.fft.fftfreq(win_samples, d=1/FPS)
         power = np.abs(fhat)**2 / win_samples
         
         # Positive frequencies
@@ -237,7 +496,7 @@ def plot_signal_sliding_powerweight(signal_processed, label, fps=35,
         power_pos = power[pos_mask]
         
         # Heart rate band
-        hr_mask = (freqs_pos >= hr_low) & (freqs_pos <= hr_high)
+        hr_mask = (freqs_pos >= HR_LOW) & (freqs_pos <= HR_HIGH)
         freqs_hr = freqs_pos[hr_mask]
         power_hr = power_pos[hr_mask]
         
@@ -246,10 +505,15 @@ def plot_signal_sliding_powerweight(signal_processed, label, fps=35,
             peak_freq = np.sum(freqs_hr * power_hr) / np.sum(power_hr)
             bpm = peak_freq * 60
             hr_estimates.append(bpm)
-            times_hr.append(start / fps + window_size / 2)
+            times_hr.append(start / FPS + window_size / 2)
         else:
             hr_estimates.append(np.nan)
-            times_hr.append(start / fps + window_size / 2)
+            times_hr.append(start / FPS + window_size / 2)
+    
+    # Compute average and median HR (ignore NaNs)
+    hr_array = np.array(hr_estimates)
+    avg_hr = np.nanmean(hr_array)
+    median_hr = np.nanmedian(hr_array)
     
     # Plot
     fig, axs = plt.subplots(2, 1, figsize=(12, 8))
@@ -264,13 +528,145 @@ def plot_signal_sliding_powerweight(signal_processed, label, fps=35,
     axs[0].legend(loc='upper right')
     
     # HR over time
-    axs[1].plot(times_hr, hr_estimates, 'r-o')
+    axs[1].plot(times_hr, hr_estimates, 'r-o', label='Sliding HR')
+    axs[1].axhline(avg_hr, color='g', linestyle='--', label=f"Avg HR = {avg_hr:.1f} BPM")
+    axs[1].axhline(median_hr, color='b', linestyle='--', label=f"Median HR = {median_hr:.1f} BPM")
     axs[1].set_xlabel("Time (s)")
     axs[1].set_ylabel("Heart Rate (BPM)")
     axs[1].set_title("Estimated Heart Rate Over Time")
+    axs[1].legend()
     axs[1].grid(True)
     
     plt.tight_layout()
     plt.show()
     
-    return times_hr, hr_estimates
+    print(f"Average Heart Rate: {avg_hr:.2f} BPM")
+    print(f"Median Heart Rate: {median_hr:.2f} BPM")
+    
+    return times_hr, hr_estimates, avg_hr, median_hr
+
+def sliding_power_spectrum_hr(signal,label, fps=Video.FPS,
+                              hr_low=0.7, hr_high=4.0,
+                              window_size=15, step_size=5):
+    """
+    Compute sliding-window power spectrum and average them to get a robust HR estimate.
+    
+    Parameters:
+    - signal: preprocessed rPPG signal (1D array)
+    - fps: sampling rate
+    - label: string for plotting
+    - hr_low, hr_high: HR frequency range in Hz (default 0.7-4 Hz)
+    - window_size: window length in seconds
+    - step_size: step between windows in seconds
+    
+    Returns:
+    - times_hr: center times of each window
+    - hr_sliding: sliding HR estimates in BPM
+    - avg_hr: mean HR across windows
+    - median_hr: median HR across windows
+    - freqs_avg: frequency bins of averaged spectrum
+    - power_avg: averaged power spectrum
+    """
+
+    n_samples = len(signal)
+    win_samples = int(window_size * fps)
+    step_samples = int(step_size * fps)
+
+    times_hr = []
+    hr_sliding = []
+
+    power_accum = None  # To accumulate power spectra
+
+    # Sliding window
+    for start in range(0, n_samples - win_samples + 1, step_samples):
+        segment = signal[start:start + win_samples]
+        windowed = segment * np.hanning(win_samples)
+
+        # FFT
+        fhat = np.fft.fft(windowed)
+        freqs = np.fft.fftfreq(win_samples, d=1/fps)
+        power = np.abs(fhat)**2 / win_samples
+
+        # Positive frequencies
+        pos_mask = freqs > 0
+        freqs_pos = freqs[pos_mask]
+        power_pos = power[pos_mask]
+
+        # Accumulate for average spectrum
+        if power_accum is None:
+            power_accum = np.zeros_like(power_pos)
+        power_accum += power_pos
+
+        # HR band
+        hr_mask = (freqs_pos >= hr_low) & (freqs_pos <= hr_high)
+        freqs_hr = freqs_pos[hr_mask]
+        power_hr = power_pos[hr_mask]
+
+        if len(power_hr) > 0 and np.sum(power_hr) > 0:
+            # Power-weighted mean frequency
+            peak_freq = np.sum(freqs_hr * power_hr) / np.sum(power_hr)
+            bpm = peak_freq * 60
+            hr_sliding.append(bpm)
+        else:
+            hr_sliding.append(np.nan)
+
+        times_hr.append(start/fps + window_size/2)
+
+    # Average the accumulated spectrum
+    power_avg = power_accum / len(range(0, n_samples - win_samples + 1, step_samples))
+    freqs_avg = freqs_pos
+
+    # Global HR from averaged spectrum in HR band
+    hr_mask_avg = (freqs_avg >= hr_low) & (freqs_avg <= hr_high)
+    freqs_hr_avg = freqs_avg[hr_mask_avg]
+    power_hr_avg = power_avg[hr_mask_avg]
+
+    if len(power_hr_avg) > 0 and np.sum(power_hr_avg) > 0:
+        global_peak_freq = np.sum(freqs_hr_avg * power_hr_avg) / np.sum(power_hr_avg)
+        global_hr = global_peak_freq * 60
+    else:
+        global_hr = np.nan
+
+    # Mean/median sliding HR
+    hr_array = np.array(hr_sliding)
+    avg_hr = np.nanmean(hr_array)
+    median_hr = np.nanmedian(hr_array)
+
+    # Plotting
+    fig, axs = plt.subplots(3,1, figsize=(12,12))
+
+    # 1. Time signal
+    axs[0].plot(np.arange(n_samples)/fps, signal, color='black')
+    axs[0].set_title(f"Time-domain rPPG Signal - {label}")
+    axs[0].set_xlabel("Time (s)")
+    axs[0].set_ylabel("Intensity")
+
+    # 2. Sliding HR over time
+    axs[1].plot(times_hr, hr_sliding, 'r-o', label='Sliding HR')
+    axs[1].axhline(avg_hr, color='g', linestyle='--', label=f"Mean HR = {avg_hr:.1f} BPM")
+    axs[1].axhline(median_hr, color='b', linestyle='--', label=f"Median HR = {median_hr:.1f} BPM")
+    axs[1].set_xlabel("Time (s)")
+    axs[1].set_ylabel("HR (BPM)")
+    axs[1].set_title("Sliding HR Over Time")
+    axs[1].legend()
+    axs[1].grid(True)
+
+    # 3. Averaged Power Spectrum
+    axs[2].plot(freqs_avg, power_avg, color='orange', label='Averaged Power Spectrum')
+    axs[2].axvline(global_peak_freq, color='red', linestyle='--',
+                   label=f'Global Peak: {global_peak_freq:.2f} Hz ({global_hr:.1f} BPM)')
+    axs[2].set_xlim(0,5)
+    axs[2].set_xlabel("Frequency (Hz)")
+    axs[2].set_ylabel("Power")
+    axs[2].set_title("Averaged Power Spectrum")
+    axs[2].legend()
+    axs[2].grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+    print(f"Mean sliding HR: {avg_hr:.2f} BPM")
+    print(f"Median sliding HR: {median_hr:.2f} BPM")
+    print(f"Global HR from averaged spectrum: {global_hr:.2f} BPM")
+
+    return times_hr, hr_sliding, avg_hr, median_hr, freqs_avg, power_avg

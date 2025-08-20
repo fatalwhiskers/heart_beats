@@ -59,7 +59,7 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
             if apply_bandpass:
                 signal_data = ext.bandpass_filter(signal_data, Video.FPS)
 
-            plotter.plot_signal_sliding_powerweight(signal_data, label)
+            plotter.run(signal_data, label)
             #bpm_over_time(signal_data, label)
 
    # plot_signal(G_signal)

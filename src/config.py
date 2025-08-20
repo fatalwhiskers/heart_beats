@@ -10,4 +10,4 @@ class Signal:
     WINDOW_SECONDS: int = 10
     HR_LOW: float = 0.75      # Hz   (45 bpm)
     HR_HIGH: float = 3.0      # Hz  (180 bpm)
-    HR_ORDER = 5
+    HR_ORDER = 7
