@@ -6,9 +6,7 @@ from src.config import Signal
 from src.config import PRV
 from scipy.ndimage import median_filter
 
-# ----------------------------
-# Utilities
-# ----------------------------
+
 def resample_to_uniform(time_in, signal_in):
 
     time_in = np.asarray(time_in, float)
@@ -101,17 +99,15 @@ def kubios_like_pp_filter(pp):
     clean_pp = np.where(artifacts_mask, med, pp)
     return clean_pp, artifacts_mask
 
-# ----------------------------
-# Main: compute PRV HR
-# ----------------------------
-def compute_prv_hr(time_stamps_raw, signal_raw,):
+
+def compute_prv_hr(time_stamps_raw, signal_raw):
 
     # 1) Resample to uniform grid (shape-preserving)
     new_Time_Grid, sig = resample_to_uniform(time_stamps_raw, signal_raw)
 
     # 3) Peaks
-    sig_samples, _ = detect_peaks_rppg(sig)
-    peaks_t = new_Time_Grid[sig_samples] if sig_samples.size else np.array([])
+    sig_samples, details = detect_peaks_rppg(sig)
+    peaks_t = new_Time_Grid[sig_samples] 
 
     # 4) PP intervals and mid-times
     pp_raw, time_at_mid_pp = pp_intervals_from_peaks(peaks_t)
