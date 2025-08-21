@@ -12,6 +12,14 @@ class Signal:
     HR_HIGH: float = 3.0      # Hz  (180 bpm)
     HR_LOW_BPM: float = 45
     HR_HIGH_BPM: float = 180
+    HR_ORDER = 7
+
+@dataclass(frozen=True)
+class PRV:
     PROM_THRESHOLD: float = 0.3
     MIN_PEAK_WIDTH: float = 0.12
-    HR_ORDER = 7
+    FPS_RESAMPLE_RATE: float = 128.0
+    PROMINENCE_LOWER_BOUND: float = 5
+    PROMINENCE_UPPER_BOUND: float = 95
+    KUBIOS_L: float = 51
+    KUBIOS_THRESHOLD: float = 0.15

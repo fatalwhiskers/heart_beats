@@ -78,3 +78,35 @@ def test_fft():
     plt.legend()
 
     plt.show()
+
+def kubios_like_pp_filter(pp, L=51, t_thresh=0.15):
+    """
+    Median-based artifact correction (Kubios-like).
+    Replace PP values deviating > t_thresh (s) from running median (window L).
+    """
+
+    half = (L - 1)//2
+    # Mirror padding
+    if pp.size > half + 1:
+        left = (2*pp[0] - pp[1:half+1][::-1])
+        right = (2*pp[-1] - pp[-half-1:-1][::-1])
+    else:
+        left = np.full(half, pp[0])
+        right = np.full(half, pp[-1])
+    pad = np.r_[left, pp, right]
+
+    # Rolling median (pure numpy implementation)
+    med = np.empty_like(pad)
+    for i in range(pad.size):
+        s = max(0, i - half)
+        e = min(pad.size, i + half + 1)
+        med[i] = np.median(pad[s:e])
+
+    med = med[half:half+pp.size]
+
+
+
+    pp_f = pp.copy()
+    mask = np.abs(pp - med) > t_thresh
+    pp_f[mask] = med[mask]
+    return pp_f, mask
