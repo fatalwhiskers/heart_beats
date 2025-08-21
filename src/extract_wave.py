@@ -23,6 +23,31 @@ def extract_rgb_signals_BGR_list(frames):
 def zscore_normalize(signal):
     return (signal - np.mean(signal)) / (np.std(signal))
 
+def detrend_zscore(signal):
+    """
+    Standardize signal to zero mean and unit variance (global).
+    """
+    return (signal - np.mean(signal)) / (np.std(signal) ) # (np.std(signal) + 1e-8)
+
+def detrend_running_mean(signal, fps, win_sec=1.0):
+    """
+    Detrend by dividing each sample by its local running mean.
+    UBFC-Phys used ~1s window.
+    """
+    win_len = int(fps * win_sec)
+    if win_len < 1:
+        win_len = 1
+
+    # Compute running mean with convolution
+    kernel = np.ones(win_len) / win_len
+    local_mean = np.convolve(signal, kernel, mode='same')
+
+    # Avoid divide by zero
+    local_mean[local_mean == 0] = 1e-8
+
+    detrended = signal / local_mean
+    return detrended - np.mean(detrended)  # optional re-centering
+
 def bandpass_filter(signal, fs, lowcut=Signal.HR_LOW, highcut=Signal.HR_HIGH, order=Signal.HR_ORDER):
     nyq = 0.5 * fs
     low = lowcut / nyq
