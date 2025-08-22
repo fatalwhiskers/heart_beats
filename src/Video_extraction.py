@@ -271,9 +271,14 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
     R, G, B = [], [], []
     timestamps = []
     frame_count = 0
-
-    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7) as face_detector, \
-         mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.7) as face_mesh:
+    face_detector = None
+    face_mesh = None
+    try:
+        if crop_mode in ('face_track', 'bbox_forehead'):
+            face_detector = mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
+        if crop_mode == 'mesh_forehead':
+            face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1,
+                                            refine_landmarks=True, min_detection_confidence=0.7)
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -363,7 +368,12 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
                 cv2.imshow('frame', crop_frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-
+    finally:
+    # Clean up only the ones you created
+        if face_detector is not None:
+            face_detector.close()
+        if face_mesh is not None:
+            face_mesh.close()                
     cap.release()
     if display:
         cv2.destroyAllWindows()

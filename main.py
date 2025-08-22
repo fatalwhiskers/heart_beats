@@ -54,12 +54,12 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
             zca_components = ext.zca_whiten(R_signal, G_signal, B_signal)
             for i in range(min(3, zca_components.shape[1])):
                 signals[f'ZCA_{i+1}'] = zca_components[:, i]
+        
         if 'POS' in channels or 'ALL' in channels:
             y1 = G_signal - B_signal
             y2 = G_signal + B_signal - 2*R_signal
             a = np.std(y1) / (np.std(y2) + 1e-8)
             pos_signal = y1 + a * y2
-
             signals['POS'] = pos_signal
 
         for label, signal_data in signals.items():
@@ -67,10 +67,8 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
                 signal_data = ext.bandpass_filter(signal_data, Video.FPS)
 
             plotter.run(signal_data, label)
-            #bpm_over_time(signal_data, label)
 
-   # plot_signal(G_signal)
-   # bpm_over_time(G_signal)
+
 
 # example usage python main.py --channels G R --face_tracking
 def main():
