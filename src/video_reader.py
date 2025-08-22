@@ -237,11 +237,12 @@ def load_crop_settings(csv_path):
         for row in reader:
             try:
                 filename = row['filename'].strip()
+                file_CSV = row['CSV'].strip()
                 x1 = int(row['x1'])
                 y1 = int(row['y1'])
                 x2 = int(row['x2'])
                 y2 = int(row['y2'])
-                crop_settings.append((filename, x1, y1, x2, y2))
+                crop_settings.append((filename, file_CSV, x1, y1, x2, y2))
             except (KeyError, ValueError) as e:
                 print(f"Skipping row due to error: {e}")
                 continue  # skip malformed rows

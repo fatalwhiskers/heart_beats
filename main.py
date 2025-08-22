@@ -1,5 +1,6 @@
 import src.video_reader as vr
 import src.Video_extraction as VE
+import src.BVP as BVP
 import src.plotter as plotter
 import test as test
 import numpy as np
@@ -7,19 +8,17 @@ import src.extract_wave as ext
 import argparse
 import sys
 import os
-
-from src.config import Video 
+from src.config import Video, filePaths
 
 
 def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = False):
-    output_path = r"outputs"  
-    folder_path = r"data\Dataset1"
-    csv_path = r"data\CSVFiles\Settings.csv"
-    crop_list = vr.load_crop_settings(csv_path)
-    
-    for filename, x1, y1, x2, y2 in crop_list:
+   
 
-        video_path = os.path.join(folder_path, filename)
+    crop_list = VE.load_crop_settings(filePaths.csv_path)
+    
+    for filename, file_CSV, x1, y1, x2, y2 in crop_list:
+
+        video_path = os.path.join(filePaths.folder_path, filename)
         R_signal, G_signal, B_signal, time_array = VE.extract_video_to_rgb(video_path, x1, y1, x2, y2, crop_mode, Display, Testing)
 
         
@@ -58,15 +57,15 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
         if 'POS' in channels or 'ALL' in channels:
             y1 = G_signal - B_signal
             y2 = G_signal + B_signal - 2*R_signal
-            a = np.std(y1) / (np.std(y2) + 1e-8)
+            a = np.std(y1) / (np.std(y2))
             pos_signal = y1 + a * y2
             signals['POS'] = pos_signal
 
         for label, signal_data in signals.items():
             if apply_bandpass:
                 signal_data = ext.bandpass_filter(signal_data, Video.FPS)
-
-            plotter.run(signal_data, label)
+            ground_truth_hr = BVP.get_bvp_ground_truth(file_CSV)    
+            plotter.run(signal_data, label, ground_truth_hr)
 
 
 
