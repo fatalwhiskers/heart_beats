@@ -53,6 +53,15 @@ def runLoad(channels=['G'], cropping = True, crop_mode = "manual", interpolate =
             zca_components = ext.zca_whiten(R_signal, G_signal, B_signal)
             for i in range(min(3, zca_components.shape[1])):
                 signals[f'ZCA_{i+1}'] = zca_components[:, i]
+
+        if 'ICA' in channels or 'ALL' in channels:
+            ICA_components, best_idx = ext.ICA(R_signal, G_signal, B_signal)
+            for i in range(min(3, ICA_components.shape[1])):
+
+                if i == best_idx:
+                    signals[f'Best_ICA_{i+1}'] = ICA_components[:, i]
+                else:
+                    signals[f'ICA_{i+1}'] = ICA_components[:, i]
         
         if 'POS' in channels or 'ALL' in channels:
             y1 = G_signal - B_signal

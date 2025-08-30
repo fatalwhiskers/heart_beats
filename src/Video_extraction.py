@@ -256,8 +256,6 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
     display=False, testing=False,
     test_output_dir=r"outputs\test_frames"
 ):
-    mp_face_detection = mp.solutions.face_detection
-    mp_face_mesh = mp.solutions.face_mesh
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -277,9 +275,9 @@ def extract_video_to_rgb(video_path, x1=0, y1=0, x2=0, y2=0,
     face_mesh = None
     try:
         if crop_mode in ('face_track', 'bbox_forehead'):
-            face_detector = mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
+            face_detector = mp.solutions.face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
         if crop_mode == 'mesh_forehead':
-            face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1,
+            face_mesh =  mp.solutions.face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1,
                                             refine_landmarks=True, min_detection_confidence=0.7)
 
         while cap.isOpened():

@@ -1,6 +1,7 @@
 import numpy as np
-from .config import Signal
-from sklearn.decomposition import PCA
+from .config import Signal, Video
+from scipy import signal
+from sklearn.decomposition import PCA, FastICA
 from scipy.interpolate import interp1d
 from scipy.signal import butter, filtfilt, detrend
 
@@ -108,6 +109,25 @@ def zca_whiten(R, G, B, epsilon=1e-5):
     X_zca = X @ ZCA_matrix.T
     
     return X_zca  # shape (time, 3)
+
+def ICA(R, G, B):
+
+    RGB_array = np.vstack([R, G, B]).T.astype(float)
+
+    ica = FastICA(n_components=3)
+    # Center the data
+    ICA_RGB_S = ica.fit_transform(RGB_array)
+
+    freqs, psd = signal.welch(ICA_RGB_S, Video.FPS, nperseg=min(1024, len(ICA_RGB_S)))
+
+    hr_mask = (freqs >= Signal.HR_LOW) & (freqs <= Signal.HR_HIGH)
+    band_power = psd[:, hr_mask].sum(axis=1)
+    best_idx = int(np.argmax(band_power))
+
+    best_guess_signal = ICA_RGB_S[:, best_idx]
+
+    
+    return best_guess_signal, best_idx  # shape (time, 3)
 
 def detrend_sig(signal):
     return detrend(signal)
