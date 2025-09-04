@@ -3,15 +3,21 @@ import numpy as np
 import test as test
 from src.config import Video 
 from src.rppg import sliding_fft_hr 
-from src.config import Signal
+from src.config import Signal, fileDataset1, fileDataset2
 import pandas as pd
+import src.Stats as hr_stat
 from scipy.signal import welch, medfilt, savgol_filter, get_window, find_peaks
 from scipy.ndimage import uniform_filter1d
 
-
-FPS: int = 35
-HR_LOW: float = 0.7      # Hz   (45 bpm)
-HR_HIGH: float = 3.0      # Hz  (180 bpm)
+HEADER = [
+    "Subject ID", "Recording ID", "ROI", "Extraction Method",
+    "Number of Windows",
+    "MAE (bpm)", "RMSE (bpm)", "Pearson r", "Pearson p",
+    "Bias (bpm)", "SD (bpm)", "LoA Lower (bpm)", "LoA Upper (bpm)",
+    "Mean rPPG (bpm)", "Median rPPG (bpm)",
+    "Mean Ground Truth (bpm)", "Median Ground Truth (bpm)",
+    "Mean Error (bpm)", "Median Error (bpm)", "Median Absolute Error (bpm)",
+]
 
 def run(signal_processed, label, ground_truth_hr):
     #plot_signal_poer(signal_processed, label)
@@ -19,7 +25,17 @@ def run(signal_processed, label, ground_truth_hr):
     estimate_hr_sliding(signal_processed, label)
     #plot_power_spectrum(signal_processed, label)
 
+def build_table(rPPG, rPPG_time,  ground_truth, gt_time, subject, recording_id, signal_label, cropMode):
+    stats = hr_stat.evaluate_hr_metrics(rPPG, ground_truth, rPPG_time, gt_time)
+    row = hr_stat.metrics_to_row(stats, subject, recording_id, signal_label, cropMode)
+    hr_stat.append_rows_to_csv(r"outputs\time_array_fix_results.csv", HEADER, [row])
+    return
 
+def build_table_ECG(rPPG, ground_truth, t_rPPG, t_ref, subject, recording_id, signal_label, cropMode):
+    stats = hr_stat.evaluate_hr_metrics(rPPG, ground_truth, t_rPPG, t_ref)
+    row = hr_stat.metrics_to_row(stats, subject, recording_id, signal_label, cropMode)
+    hr_stat.append_rows_to_csv(r"outputs\results.csv", HEADER, [row])
+    return
 
 def compare_bvp_rppg(bvp_signal, rppg_signal, bvp_rate=64, rppg_fps=35, 
                      window_size=15, step_size=5, smooth_rppg=True):
@@ -97,9 +113,9 @@ def compare_bvp_rppg(bvp_signal, rppg_signal, bvp_rate=64, rppg_fps=35,
     }
 
 
-def estimate_hr_sliding(signal, label, fps=Video.FPS, window_size=15, step_size=5):
+def estimate_hr_sliding(signal, fps=Video.FPS):
 
-    times, hr_values, psd_accum, freqs_band = sliding_fft_hr(signal, label)
+    times, hr_values, psd_accum, freqs_band = sliding_fft_hr(signal)
 
     # --- Averaged spectrum ---
     avg_psd = np.mean(psd_accum, axis=0)
