@@ -1,0 +1,17 @@
+video_id,label,time_s,fft_PCA_2_poly,hilbert_PCA_2_poly
+Markiplier_Baseline_3,neutral,15.0,48.0,84.08447767231264
+Markiplier_Baseline_3,neutral,17.0,48.0,83.40140923470413
+Markiplier_Baseline_3,neutral,19.0,47.287134180011044,82.63625267181604
+Markiplier_Baseline_3,neutral,21.0,46.0,81.31358855472246
+Markiplier_Baseline_3,neutral,23.0,46.0,79.8954697540368
+Markiplier_Baseline_3,neutral,25.0,54.561016013252384,79.09978504120052
+Markiplier_Baseline_3,neutral,27.0,69.436775262286,78.85691163594544
+Markiplier_Baseline_3,neutral,29.0,53.43456653782437,80.29869958793063
+Markiplier_Baseline_3,neutral,31.0,46.0,81.25460220303768
+Markiplier_Baseline_3,neutral,33.0,46.0,84.2207786535609
+Markiplier_Baseline_3,neutral,35.0,46.0,86.48167408762527
+Markiplier_Baseline_3,neutral,37.0,48.14356709000555,88.03038536558233
+Markiplier_Baseline_3,neutral,39.0,52.0,89.22288235798219
+Markiplier_Baseline_3,neutral,41.0,52.0,91.27495611049699
+Markiplier_Baseline_3,neutral,43.0,50.569850911098825,92.76081141758743
+Markiplier_Baseline_3,neutral,45.0,,97.42664304748145

@@ -1,0 +1,10 @@
+video,tech,method,roi,mae,video_clean
+s28_vid_s28_T1_all_rois,welch,pca_3,face_track,5.031377605300608,S28 T1
+s28_vid_s28_T2_all_rois,welch,g,poly,14.096096142991163,S28 T2
+s28_vid_s28_T3_all_rois,welch,ica_1,face_track,16.811222150424115,S28 T3
+s34_vid_s34_T1_all_rois,welch,pos,manual,1.0632189599562762,S34 T1
+s34_vid_s34_T2_all_rois,welch,ica_3,poly,11.4942285945774,S34 T2
+s34_vid_s34_T3_all_rois,welch,ica_3,poly,7.1324208117533425,S34 T3
+s9_vid_s9_T1_all_rois,welch,zca_1,none,20.47760894120174,S9 T1
+s9_vid_s9_T2_all_rois,welch,r,manual,25.532805328866782,S9 T2
+s9_vid_s9_T3_all_rois,welch,r,none,24.71072671230993,S9 T3

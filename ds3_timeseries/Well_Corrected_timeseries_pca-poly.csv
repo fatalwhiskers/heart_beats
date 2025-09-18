@@ -1,0 +1,15 @@
+video_id,label,time_s,fft_PCA_2_poly,hilbert_PCA_2_poly
+Well_Corrected,unknown,15.0,,98.68055593471883
+Well_Corrected,unknown,17.0,,98.31423028647566
+Well_Corrected,unknown,19.0,56.0,97.61785318612674
+Well_Corrected,unknown,21.0,56.0,98.35658300778167
+Well_Corrected,unknown,23.0,56.0,99.8359163603866
+Well_Corrected,unknown,25.0,56.0,101.05388321622641
+Well_Corrected,unknown,27.0,56.0,102.78285477421619
+Well_Corrected,unknown,29.0,56.0,103.85522181012918
+Well_Corrected,unknown,31.0,56.0,104.52032938019269
+Well_Corrected,unknown,33.0,56.0,106.10980170832717
+Well_Corrected,unknown,35.0,58.29383843112791,108.0081909718857
+Well_Corrected,unknown,37.0,69.12776347274395,109.77224975666509
+Well_Corrected,unknown,39.0,94.46406184977278,111.32262894893586
+Well_Corrected,unknown,41.0,,112.50754878466947

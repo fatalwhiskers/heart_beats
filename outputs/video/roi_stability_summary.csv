@@ -1,0 +1,4 @@
+method,jitter_px_per_frame,mean_iou,delta_jitter_vs_raw_pct,delta_iou_vs_raw_pct
+RAW,nan,nan,0.0,0.0
+KF,nan,nan,nan,nan
+EUR,nan,nan,nan,nan

@@ -1,5 +1,5 @@
 filename,file_CSV,x1,y1,x2,y2
-vid_s28_T1.avi, bvp_s28_T1.csv, 520, 115, 880, 730
-vid_s28_T2.avi, bvp_s28_T2.csv, 520, 115, 880, 730
 vid_s28_T3.avi, bvp_s28_T3.csv, 520, 115, 880, 730
 vid_s34_T1.avi, bvp_s34_T1.csv, 520, 115, 880, 730
+vid_s34_T2.avi, bvp_s34_T2.csv, 700, 150, 900, 480
+vid_s34_T3.avi, bvp_s34_T3.csv, 700, 150, 900, 480

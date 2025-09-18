@@ -1,208 +1,279 @@
 import numpy as np
-from src.config import Video 
-from src.config import rppg 
+from src.config import Video
+from src.config import rppg, Signal, PRV
 from scipy.signal import welch, butter, filtfilt, detrend
+import numpy as np
+from scipy import signal, interpolate
+import neurokit2 as nk
+import numpy as np
 
-def sliding_fft_hr(rppg_signal):
-    # Normalize
+def sliding_fft_hr(rppg_signal, timestamps):
+    fs_target = PRV.FPS_RESAMPLE_RATE
+    hr_low_hz = Signal.HR_LOW
+    hr_high_hz = Signal.HR_HIGH
+    window_size = rppg.window_size
+    step_size = rppg.step_size
+
+    dt_median = np.median(np.diff(timestamps))
+    fs_input = 1.0 / dt_median
+    signal_resampled = nk.signal_resample(
+        signal,
+        sampling_rate=fs_input,
+        desired_sampling_rate=fs_target,
+        method="pchip"
+    )
+    time_uniform = np.linspace(timestamps[0], timestamps[-1], num=len(signal_resampled))
+
+    signal_filtered = nk.signal_filter(
+        signal_resampled,
+        sampling_rate=fs_target,
+        lowcut=float(hr_low_hz),
+        highcut=float(hr_high_hz),
+        method="butterworth",
+        order=Signal.HR_ORDER
+    )
+
     signal = (rppg_signal - np.mean(rppg_signal)) / np.std(rppg_signal)
-    
     n = len(signal)
     win_len = int(rppg.window_size * Video.FPS)
     step_len = int(rppg.step_size * Video.FPS)
     hann_win = np.hanning(win_len)
-    
-    hr_values, times = [], [] 
+
+    hr_values, times = [], []
     psd_accum = []
 
     for start in range(0, n - win_len, step_len):
         segment = signal[start:start + win_len]
         segment = segment * hann_win
-
-        # FFT
         fft_vals = np.fft.rfft(segment)
         freqs = np.fft.rfftfreq(win_len, d=1/Video.FPS)
         power = np.abs(fft_vals) ** 2
-
-        # Restrict to HR band
         mask = (freqs >= 0.7) & (freqs <= 4.0)
         freqs_band, power_band = freqs[mask], power[mask]
-
-        # Normalize spectrum for averaging
         power_band = power_band / np.max(power_band)
         psd_accum.append(power_band)
-
-        # Power-weighted frequency (robust HR)
         freq_est = np.sum(freqs_band * power_band) / np.sum(power_band)
         bpm = freq_est * 60
-
         hr_values.append(bpm)
         times.append(start / Video.FPS)
-    
+
     return np.array(times), np.array(hr_values), np.array(psd_accum), freqs_band
 
-def sliding_fft_hr_center(rppg_signal):
+def estimate_hr_fft_nt(timestamps, signal):
+    fs_target = PRV.FPS_RESAMPLE_RATE
+    hr_low_hz = Signal.HR_LOW
+    hr_high_hz = Signal.HR_HIGH
+    window_size = rppg.window_size
+    step_size = rppg.step_size
 
-    signal = (rppg_signal - np.mean(rppg_signal)) / np.std(rppg_signal)
+    if fs_target is None:
+        fs_target = float(PRV.FPS_RESAMPLE_RATE)
 
-    n = len(signal)
-    win_len = int(rppg.window_size * Video.FPS)
-    step_len = int(rppg.step_size * Video.FPS)
-    hann_win = np.hanning(win_len)
+    dt_median = np.median(np.diff(timestamps))
+    fs_input = 1.0 / dt_median
+    signal_resampled = nk.signal_resample(
+        signal,
+        sampling_rate=fs_input,
+        desired_sampling_rate=fs_target,
+        method="pchip"
+    )
+    time_uniform = np.linspace(timestamps[0], timestamps[-1], num=len(signal_resampled))
 
-    # Precompute frequency grid and HR band mask once
-    freqs = np.fft.rfftfreq(win_len, d=1 / Video.FPS)
-    mask = (freqs >= 0.7) & (freqs <= 4.0)
-    freqs_band = freqs[mask]
+    signal_filtered = nk.signal_filter(
+        signal_resampled,
+        sampling_rate=fs_target,
+        lowcut=float(hr_low_hz),
+        highcut=float(hr_high_hz),
+        method="butterworth",
+        order=Signal.HR_ORDER
+    )
 
-    hr_values, times = [], []
-    psd_rows = []
+    samples_per_window = int(window_size * fs_target)
+    step_samples = int(step_size * fs_target)
 
-    # Inclusive last window
-    for start in range(0, n - win_len + 1, step_len):
-        segment = signal[start:start + win_len] * hann_win
+    hr_estimates = []
+    window_centers = []
 
-        fft_vals = np.fft.rfft(segment)
-        power = np.abs(fft_vals) ** 2
+    for start_idx in range(0, len(signal_filtered) - samples_per_window, step_samples):
+        segment = signal_filtered[start_idx:start_idx + samples_per_window]
+        segment = segment - np.mean(segment)
+        spectrum = np.fft.rfft(segment)
+        freqs = np.fft.rfftfreq(len(segment), d=1.0/fs_target)
+        power = np.abs(spectrum) ** 2
+        band_mask = (freqs >= float(Signal.HR_LOW)) & (freqs <= float(Signal.HR_HIGH))
+        if not np.any(band_mask):
+            continue
+        freqs_band = freqs[band_mask]
+        power_band = power[band_mask]
+        peak_freq = freqs_band[np.argmax(power_band)]
+        hr_bpm = 60.0 * peak_freq
+        hr_estimates.append(hr_bpm)
+        window_centers.append(time_uniform[start_idx + samples_per_window // 2])
 
-        # Restrict to HR band and normalize per-window
-        power_band = power[mask]
-        power_band = power_band / np.max(power_band)
+    return np.array(window_centers), np.array(hr_estimates)
 
-        # Power-weighted frequency → BPM
-        freq_est = np.sum(freqs_band * power_band) / np.sum(power_band)
-        bpm = freq_est * 60.0
+def next_pow2(x):
+    return 1 << (int(np.ceil(np.log2(max(1, int(x))))))
 
-        psd_rows.append(power_band)
-        hr_values.append(bpm)
+def estimate_hr_welch_nk(timestamps, signal):
+    fs_target = PRV.FPS_RESAMPLE_RATE
+    hr_low_hz = float(Signal.HR_LOW)
+    hr_high_hz = float(Signal.HR_HIGH)
+    window_size = float(rppg.window_size)
+    step_size = float(rppg.step_size)
 
-        # Use window center time
-        times.append((start + win_len / 2) / Video.FPS)
+    dt = np.diff(timestamps)
+    dt = dt[np.isfinite(dt) & (dt > 0)]
+    fs_input = 1.0 / np.median(dt) if dt.size else fs_target
 
-    psd_accum = np.vstack(psd_rows)
-    return np.array(times), np.array(hr_values), psd_accum, freqs_band
+    signal_resampled = nk.signal_resample(
+        signal,
+        sampling_rate=fs_input,
+        desired_sampling_rate=fs_target,
+        method="pchip"
+    )
+    time_uniform = np.linspace(timestamps[0], timestamps[-1], num=len(signal_resampled))
 
-def sliding_welch_hr_center(rppg_signal):
-    # Standardize signal
-    signal = (rppg_signal - np.mean(rppg_signal)) / (np.std(rppg_signal) + 1e-12)
+    signal_filtered = nk.signal_filter(
+        signal_resampled,
+        sampling_rate=fs_target,
+        lowcut=hr_low_hz,
+        highcut=hr_high_hz,
+        method="butterworth",
+        order=Signal.HR_ORDER
+    )
 
-    n = len(signal)
-    win_len = int(rppg.window_size * Video.FPS)
-    step_len = int(rppg.step_size * Video.FPS)
+    samples_per_window = int(round(window_size * fs_target))
+    step_samples = max(1, int(round(step_size * fs_target)))
 
-    # Precompute HR band once
-    hr_lo, hr_hi = 0.7, 4.0  # Hz
+    nperseg = max(16, int(round(0.75 * samples_per_window)))
+    noverlap = max(0, int(round(0.5 * nperseg)))
+    nfft = next_pow2(4 * nperseg)
+    win = 'hann'
 
-    hr_values, times = [], []
-    psd_rows = []
+    hr_estimates = []
+    window_centers = []
     freqs_band_ref = None
+    band_mask = None
 
-    # Inclusive last window
-    for start in range(0, n - win_len + 1, step_len):
-        segment = signal[start:start + win_len]
-        """
-        # Welch PSD for this segment
-        freqs, psd = welch(
-            segment,
-            fs=Video.FPS,
-            window='hann',
-            nperseg=min(256, win_len),  # adjust if needed
-            noverlap=None,
-            detrend='constant',
-            scaling='density'
-        )"""
+    if len(signal_filtered) >= samples_per_window:
+        dummy = signal_filtered[:samples_per_window]
+        freqs_full, _ = welch(
+            dummy, fs=fs_target, window=win, nperseg=nperseg, noverlap=noverlap,
+            nfft=nfft, detrend="constant", scaling="density", average="median",
+            return_onesided=True
+        )
+        band_mask = (freqs_full >= hr_low_hz) & (freqs_full <= hr_high_hz)
+        freqs_band_ref = freqs_full[band_mask] if np.any(band_mask) else None
+
+    for start_idx in range(0, len(signal_filtered) - samples_per_window + 1, step_samples):
+        seg = signal_filtered[start_idx:start_idx + samples_per_window]
+
+        if band_mask is None or not np.any(band_mask):
+            hr_estimates.append(np.nan)
+            window_centers.append(time_uniform[start_idx + samples_per_window // 2])
+            continue
 
         freqs, psd = welch(
-            segment,
-            fs=Video.FPS,
-            window='hamming',
-            nperseg=win_len,
-            noverlap=win_len // 2,   # <-- paper setting
-            nfft=4096,
-            detrend=False,
-            scaling='density'
+            seg, fs=fs_target, window=win, nperseg=nperseg, noverlap=noverlap,
+            nfft=nfft, detrend="constant", scaling="density", average="median",
+            return_onesided=True
         )
 
-        # Restrict to HR band
-        mask = (freqs >= hr_lo) & (freqs <= hr_hi)
-        freqs_band = freqs[mask]
-        power_band = psd[mask]
+        Pb = psd[band_mask]
+        fb = freqs[band_mask]
 
-        # Normalize within this band
-        if power_band.size > 0:
-            power_band = power_band / np.max(power_band)
-
-            # Power-weighted frequency centroid
-            freq_est = np.sum(freqs_band * power_band) / np.sum(power_band)
-            bpm = freq_est * 60.0
+        if Pb.size:
+            k = int(np.argmax(Pb))
+            f_peak = fb[k]
+            hr_estimates.append(60.0 * f_peak)
         else:
-            power_band = np.array([])
-            bpm = np.nan
+            hr_estimates.append(np.nan)
 
-        psd_rows.append(power_band)
-        hr_values.append(bpm)
+        window_centers.append(time_uniform[start_idx + samples_per_window // 2])
 
-        # Use window center time
-        times.append((start + win_len / 2) / Video.FPS)
+    return np.asarray(window_centers), np.asarray(hr_estimates)
 
-        if freqs_band_ref is None:
-            freqs_band_ref = freqs_band
+def estimate_hr_welch_nk_simple(timestamps, signal):
+    fs_target = PRV.FPS_RESAMPLE_RATE
+    hr_low_hz = Signal.HR_LOW
+    hr_high_hz = Signal.HR_HIGH
+    window_size = rppg.window_size
+    step_size = rppg.step_size
 
-    psd_accum = np.vstack(psd_rows) if psd_rows else np.zeros((0, len(freqs_band_ref) if freqs_band_ref is not None else 0))
+    dt_median = np.median(np.diff(timestamps))
+    fs_input = 1.0 / dt_median
+    signal_resampled = nk.signal_resample(
+        signal,
+        sampling_rate=fs_input,
+        desired_sampling_rate=fs_target,
+        method="pchip"
+    )
+    time_uniform = np.linspace(timestamps[0], timestamps[-1], num=len(signal_resampled))
 
-    return np.array(times), np.array(hr_values), psd_accum, freqs_band_ref
+    signal_filtered = nk.signal_filter(
+        signal_resampled,
+        sampling_rate=fs_target,
+        lowcut=float(hr_low_hz),
+        highcut=float(hr_high_hz),
+        method="butterworth",
+        order=Signal.HR_ORDER
+    )
 
-#https://pmc.ncbi.nlm.nih.gov/articles/PMC10770840/
+    samples_per_window = int(window_size * fs_target)
+    step_samples = int(step_size * fs_target)
+
+    hr_estimates = []
+    window_centers = []
+
+    for start_idx in range(0, len(signal_filtered) - samples_per_window, step_samples):
+        segment = signal_filtered[start_idx:start_idx + samples_per_window]
+        freqs, psd = welch(
+            segment,
+            fs=fs_target,
+            nperseg=samples_per_window,
+            scaling="density"
+        )
+        band_mask = (freqs >= float(hr_low_hz)) & (freqs <= float(hr_high_hz))
+        if not np.any(band_mask):
+            continue
+        freqs_band = freqs[band_mask]
+        psd_band = psd[band_mask]
+        peak_freq = freqs_band[np.argmax(psd_band)]
+        hr_bpm = 60.0 * peak_freq
+        hr_estimates.append(hr_bpm)
+        window_centers.append(time_uniform[start_idx + samples_per_window // 2])
+
+    return np.array(window_centers), np.array(hr_estimates)
 
 def sliding_welch(rppg_signal):
-    
     x = np.asarray(rppg_signal, dtype=float)
-
-    # --- Preprocessing: detrend then 6th-order Butterworth band-pass 0.65–4.0 Hz ---
     x = detrend(x, type="linear")
     b, a = butter(6, [0.65, 4.0], btype="band", fs=Video.FPS)
     xf = filtfilt(b, a, x)
-
-    # --- Sliding windows: 10 s, no overlap ---
     win_len = int(round(10 * Video.FPS))
-    step_len = win_len  # no overlap
-
-    # Welch config: use the full 10-s window as one Welch segment (nperseg=win_len)
-    # This yields a Hann-windowed periodogram equivalent but via welch().
+    step_len = win_len
     nperseg = win_len
     noverlap = 0
-
-    # Frequency grid for this nperseg
     freqs = np.fft.rfftfreq(nperseg, 1 / Video.FPS)
-    # HR band: 39–240 BPM  -> 0.65–4.0 Hz
     band_mask = (freqs >= 39.0 / 60.0) & (freqs <= 240.0 / 60.0)
     freqs_band = freqs[band_mask]
-
     times, hr_values, rows = [], [], []
 
-    # Inclusive last window if exact multiple; otherwise drop partial tail (no overlap per spec)
     for start in range(0, len(xf) - win_len + 1, step_len):
         seg = xf[start:start + win_len]
-
-        # Welch PSD on the 10-s segment
         f, pxx = welch(
             seg, fs=Video.FPS, window="hann",
             nperseg=nperseg, noverlap=noverlap,
             detrend=False, scaling="density", return_onesided=True
         )
-
         pband = pxx[band_mask]
-        # Normalize for comparability/visualization
         pnorm = pband / np.max(pband)
-
-        # HR = peak within 39–240 BPM
         peak_idx = np.argmax(pband)
         bpm = freqs_band[peak_idx] * 60.0
-
         rows.append(pnorm)
         hr_values.append(bpm)
-        times.append((start + win_len / 2) / Video.FPS)  # window center time
+        times.append((start + win_len / 2) / Video.FPS)
 
-    psd_accum = np.vstack(rows) 
+    psd_accum = np.vstack(rows)
     return np.array(times), np.array(hr_values), psd_accum, freqs_band
-

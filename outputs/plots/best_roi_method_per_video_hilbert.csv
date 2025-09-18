@@ -1,0 +1,10 @@
+video,tech,method,roi,mae,video_clean
+s28_vid_s28_T1_all_rois,hilbert,b,mesh_forehead,2.3612255077089013,S28 T1
+s28_vid_s28_T2_all_rois,hilbert,grey_w,mesh_forehead,3.6171009967550276,S28 T2
+s28_vid_s28_T3_all_rois,hilbert,grey_w,manual,7.117406461405532,S28 T3
+s34_vid_s34_T1_all_rois,hilbert,zca_2,none,0.5070957629133659,S34 T1
+s34_vid_s34_T2_all_rois,hilbert,r,none,9.341083052361272,S34 T2
+s34_vid_s34_T3_all_rois,hilbert,ica_3,none,3.0129462390130453,S34 T3
+s9_vid_s9_T1_all_rois,hilbert,ica_3,face_track,4.305460905912349,S9 T1
+s9_vid_s9_T2_all_rois,hilbert,r,manual,18.932021858393345,S9 T2
+s9_vid_s9_T3_all_rois,hilbert,pca_2,manual,5.885366770824789,S9 T3

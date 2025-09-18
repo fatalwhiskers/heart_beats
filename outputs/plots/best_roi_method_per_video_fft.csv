@@ -1,0 +1,10 @@
+video,tech,method,roi,mae,video_clean
+s28_vid_s28_T1_all_rois,fft,pca_3,poly,4.680861071107539,S28 T1
+s28_vid_s28_T2_all_rois,fft,r,poly,13.481376827762078,S28 T2
+s28_vid_s28_T3_all_rois,fft,r,face_track,15.75811577944719,S28 T3
+s34_vid_s34_T1_all_rois,fft,pos,manual,0.971192909375874,S34 T1
+s34_vid_s34_T2_all_rois,fft,zca_3,mesh_forehead,10.742021428227902,S34 T2
+s34_vid_s34_T3_all_rois,fft,pca_3,poly,5.48617119049734,S34 T3
+s9_vid_s9_T1_all_rois,fft,zca_1,none,18.613385804562377,S9 T1
+s9_vid_s9_T2_all_rois,fft,ica_1,manual,28.495947189421315,S9 T2
+s9_vid_s9_T3_all_rois,fft,grey_a,face_track,23.37025885883688,S9 T3

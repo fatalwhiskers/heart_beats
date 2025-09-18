@@ -1,6 +1,12 @@
 import numpy as np
+from src.config import rppg
 from scipy import stats
 import csv, os
+from scipy.interpolate import PchipInterpolator
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from typing import Dict, Any, Optional
+import pandas as pd
 
 def format_p(p):
     """Format p-values for paper-style reporting."""
@@ -19,7 +25,8 @@ def pearson_corr(rPPG: np.ndarray, ground_truth: np.ndarray):
     r, p = stats.pearsonr(np.asarray(rPPG, float), np.asarray(ground_truth, float))
     return float(r), float(p)
 
-def bland_altman(rPPG: np.ndarray, ground_truth: np.ndarray, alpha: float = 0.05):
+def bland_altman(rPPG: np.ndarray, ground_truth: np.ndarray, alpha: float = 0.05, filename_prefix: str = "bland_altman",
+    outdir: str = "outputs/plots"):
     """
     Differences are rPPG - ground_truth.
     Returns bias, sd, LoA (±z*sd) and their (1-α) CIs.
@@ -29,6 +36,7 @@ def bland_altman(rPPG: np.ndarray, ground_truth: np.ndarray, alpha: float = 0.05
 
     # drop NaNs pairwise
     m = np.isfinite(rPPG) & np.isfinite(gt)
+    x = 0.5 * (rPPG[m] + gt[m])
     d = rPPG[m] - gt[m]
     n = d.size
     if n < 3:
@@ -47,6 +55,9 @@ def bland_altman(rPPG: np.ndarray, ground_truth: np.ndarray, alpha: float = 0.05
     # SEs
     se_bias = sd / np.sqrt(n)
     se_loa  = sd * np.sqrt( (1.0/n) + (z**2)/(2.0*(n - 1)) )
+    
+    #plt.show()
+    #plt.close(fig)
 
     return dict(
         bias=bias, sd=sd,
@@ -86,6 +97,9 @@ def evaluate_hr_metrics(rPPG, ground_truth, t_rPPG=None, t_ref=None):
     If both timelines are provided, ground_truth is interpolated onto t_rPPG.
     Returns MAE, RMSE, Pearson r/p, Bland–Altman, plus means/medians.
     """
+    setup_apa7_matplotlib()
+    ensure_dir("outputs/plots")
+
     if t_rPPG is not None and t_ref is not None:
         _, rPPG_use, gt_use = align_ground_truth_to_rPPG(t_rPPG, rPPG, t_ref, ground_truth)
     else:
@@ -162,3 +176,127 @@ def metrics_to_row(metrics, subject_id, recording_id, extraction_method, roi):
         "Median Error (bpm)": float(metrics["median_error"]),
         "Median Absolute Error (bpm)": float(metrics["median_absolute_error"]),
     }
+
+def average_hr_signal(t_sig, hr_sig):
+
+    win_len = float(rppg.window_size)
+    step    = float(rppg.step_size)
+
+    # interpolation (NaN outside support)
+    f = PchipInterpolator(t_sig, hr_sig, extrapolate=False)
+
+    # timeline centers
+    t0, t1 = t_sig[0], t_sig[-1]
+    t_centers = np.arange(t0 + win_len/2, t1 - win_len/2 + 1e-9, step)
+
+    hr_avg = []
+    for c in t_centers:
+        mask = (t_sig >= c - win_len/2) & (t_sig < c + win_len/2)
+        if mask.any():
+            hr_avg.append(np.nanmean(f(t_sig[mask])))
+        else:
+            hr_avg.append(np.nan)
+
+    return t_centers, np.array(hr_avg)
+
+def save_figure(fig: mpl.figure.Figure, outdir: str, filename_base: str, also_pdf: bool = True) -> Dict[str, str]:
+    """
+    Save a figure to PNG (and optionally PDF) with APA-7 friendly settings.
+    Returns dict of saved paths.
+    """
+    ensure_dir(outdir)
+    saved = {}
+    png_path = os.path.join(outdir, f"{filename_base}.png")
+    fig.savefig(png_path, bbox_inches="tight", facecolor="white")
+    saved["png"] = png_path
+    if also_pdf:
+        pdf_path = os.path.join(outdir, f"{filename_base}.pdf")
+        fig.savefig(pdf_path, bbox_inches="tight", facecolor="white")
+        saved["pdf"] = pdf_path
+    return saved
+
+def setup_apa7_matplotlib(font_family: str = "Times New Roman", base_fontsize: int = 12, dpi: int = 300) -> None:
+    """
+    Configure matplotlib for APA 7–style figures:
+    - Times New Roman 12pt if available (fallbacks listed)
+    - High DPI, tight layout, readable ticks/labels
+    """
+    tnr_candidates = [
+        font_family,
+        "Times New Roman",
+        "Nimbus Roman",
+        "Nimbus Roman No9 L",
+        "Liberation Serif",
+        "DejaVu Serif",
+    ]
+
+    mpl.rcParams.update({
+        "font.family": "serif",
+        "font.serif": tnr_candidates,
+        "figure.dpi": dpi,
+        "savefig.dpi": dpi,
+        "font.size": base_fontsize,
+        "axes.titlesize": base_fontsize,
+        "axes.labelsize": base_fontsize,
+        "xtick.labelsize": int(base_fontsize * 0.9),
+        "ytick.labelsize": int(base_fontsize * 0.9),
+        "legend.fontsize": int(base_fontsize * 0.9),
+        "axes.grid": True,
+        "grid.alpha": 0.25,
+        "figure.autolayout": True,
+    })
+
+
+def ensure_dir(path: str = "outputs/plots") -> str:
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def export_hr_to_csv_and_plot(
+    rPPG,
+    rPPG_time,
+    recording_id: str,
+    signal_label: str,
+    cropMode: str,
+    out_dir: str = "."
+):
+    """
+    - CSV filename: {recording_id}_{signal_label}_{cropMode}.csv
+    - Columns in CSV: time, hr
+    - Plot filename: {recording_id}_{signal_label}_{cropMode}.png (APA 7 style)
+    """
+    # --- prep data ---
+    if len(rPPG) != len(rPPG_time):
+        raise ValueError("rPPG and rPPG_time must be the same length.")
+
+    df = pd.DataFrame({
+        "time": rPPG_time,  # already in seconds
+        "hr": pd.to_numeric(rPPG, errors="coerce")
+    }).dropna(subset=["hr", "time"])
+
+    base = f"{recording_id}_{signal_label}_{cropMode}"
+    csv_path = os.path.join(out_dir, base + ".csv")
+    png_path = os.path.join(out_dir, base + ".png")
+
+    # --- save CSV ---
+    df.to_csv(csv_path, index=False)
+
+    # --- make plot ---
+    fig = plt.figure(figsize=(6, 4))  # APA-friendly aspect
+    ax = fig.add_subplot(111)
+
+    ax.plot(df["time"], df["hr"], linewidth=1.5)
+
+    ax.set_xlabel("Time (s)", fontsize=12)
+    ax.set_ylabel("Heart rate (bpm)", fontsize=12)
+    ax.set_title(f"{signal_label} ({recording_id}, {cropMode})", fontsize=12)
+
+    ax.grid(False)
+    ax.tick_params(axis="both", which="both", direction="in", length=4, labelsize=10)
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+
+    fig.tight_layout()
+    fig.savefig(png_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    return csv_path, png_path

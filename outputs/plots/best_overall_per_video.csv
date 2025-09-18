@@ -1,0 +1,10 @@
+,video,tech,method,roi,mae
+0,s28_vid_s28_T1_all_rois,hilbert,b,mesh_forehead,2.3612255077089013
+1,s28_vid_s28_T2_all_rois,hilbert,grey_w,mesh_forehead,3.6171009967550276
+2,s28_vid_s28_T3_all_rois,hilbert,grey_w,manual,7.117406461405532
+3,s34_vid_s34_T1_all_rois,hilbert,zca,none,0.5070957629133659
+4,s34_vid_s34_T2_all_rois,hilbert,r,none,9.341083052361272
+5,s34_vid_s34_T3_all_rois,hilbert,ica,none,3.0129462390130453
+6,s9_vid_s9_T1_all_rois,hilbert,ica,face_track,4.305460905912349
+7,s9_vid_s9_T2_all_rois,hilbert,r,manual,18.932021858393345
+8,s9_vid_s9_T3_all_rois,hilbert,pca,manual,5.885366770824789

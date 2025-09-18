@@ -1,0 +1,181 @@
+Technique,Method,ROI,MAE (bpm),r,p,n
+FFT,R,Full frame (baseline),34.81,0.08,0.558,53
+FFT,G,Full frame (baseline),32.26,-0.07,0.596,53
+FFT,B,Full frame (baseline),35.67,-0.22,0.114,53
+FFT,GREY Weight,Full frame (baseline),32.34,-0.05,0.726,53
+FFT,GREY Avg,Full frame (baseline),33.46,-0.06,0.653,53
+FFT,PCA,Full frame (baseline),32.16,-0.05,0.698,53
+FFT,ZCA,Full frame (baseline),32.33,-0.01,0.931,53
+FFT,ICA,Full frame (baseline),32.59,0.01,0.951,53
+FFT,CHROM,Full frame (baseline),38.97,-0.25,0.073,53
+FFT,POS,Full frame (baseline),40.24,-0.25,0.070,53
+FFT,R,Manual crop ROI,30.12,0.38,0.005,53
+FFT,G,Manual crop ROI,33.45,0.33,0.016,53
+FFT,B,Manual crop ROI,31.53,0.35,0.010,53
+FFT,GREY Weight,Manual crop ROI,31.64,0.36,0.008,53
+FFT,GREY Avg,Manual crop ROI,31.53,0.41,0.002,53
+FFT,PCA,Manual crop ROI,30.82,-0.01,0.962,53
+FFT,ZCA,Manual crop ROI,31.9,-0.12,0.394,53
+FFT,ICA,Manual crop ROI,28.5,0.25,0.074,53
+FFT,CHROM,Manual crop ROI,50.63,-0.19,0.163,53
+FFT,POS,Manual crop ROI,49.91,-0.0,0.981,53
+FFT,R,Face tracking (BlazeFace),34.58,-0.07,0.597,53
+FFT,G,Face tracking (BlazeFace),32.36,-0.02,0.908,53
+FFT,B,Face tracking (BlazeFace),30.29,0.13,0.352,53
+FFT,GREY Weight,Face tracking (BlazeFace),33.31,-0.05,0.725,53
+FFT,GREY Avg,Face tracking (BlazeFace),33.13,0.05,0.748,53
+FFT,PCA,Face tracking (BlazeFace),31.25,0.08,0.578,53
+FFT,ZCA,Face tracking (BlazeFace),31.66,0.18,0.205,53
+FFT,ICA,Face tracking (BlazeFace),31.46,0.06,0.685,53
+FFT,CHROM,Face tracking (BlazeFace),42.38,-0.23,0.092,53
+FFT,POS,Face tracking (BlazeFace),39.88,-0.22,0.112,53
+FFT,R,Face tracking (BlazeFace forehead),35.34,-0.18,0.191,53
+FFT,G,Face tracking (BlazeFace forehead),36.95,-0.16,0.261,53
+FFT,B,Face tracking (BlazeFace forehead),36.61,-0.07,0.638,53
+FFT,GREY Weight,Face tracking (BlazeFace forehead),36.33,-0.16,0.252,53
+FFT,GREY Avg,Face tracking (BlazeFace forehead),36.28,-0.17,0.236,53
+FFT,PCA,Face tracking (BlazeFace forehead),32.37,-0.11,0.439,53
+FFT,ZCA,Face tracking (BlazeFace forehead),31.81,0.04,0.784,53
+FFT,ICA,Face tracking (BlazeFace forehead),33.56,-0.07,0.626,53
+FFT,CHROM,Face tracking (BlazeFace forehead),45.06,0.31,0.024,53
+FFT,POS,Face tracking (BlazeFace forehead),48.5,-0.06,0.686,53
+FFT,R,Polygonal forehead (Landmarker),34.87,-0.0,0.999,53
+FFT,G,Polygonal forehead (Landmarker),33.54,0.03,0.840,53
+FFT,B,Polygonal forehead (Landmarker),35.24,0.02,0.910,53
+FFT,GREY Weight,Polygonal forehead (Landmarker),33.73,-0.04,0.773,53
+FFT,GREY Avg,Polygonal forehead (Landmarker),34.18,-0.07,0.607,53
+FFT,PCA,Polygonal forehead (Landmarker),33.86,-0.0,0.990,53
+FFT,ZCA,Polygonal forehead (Landmarker),33.65,0.05,0.700,53
+FFT,ICA,Polygonal forehead (Landmarker),34.19,0.13,0.368,53
+FFT,CHROM,Polygonal forehead (Landmarker),39.98,0.02,0.900,53
+FFT,POS,Polygonal forehead (Landmarker),37.25,0.42,0.002,53
+FFT,R,Polygonal (Landmarker; forehead + cheeks),34.0,-0.06,0.653,53
+FFT,G,Polygonal (Landmarker; forehead + cheeks),35.36,-0.12,0.390,53
+FFT,B,Polygonal (Landmarker; forehead + cheeks),33.62,-0.08,0.586,53
+FFT,GREY Weight,Polygonal (Landmarker; forehead + cheeks),34.7,-0.19,0.175,53
+FFT,GREY Avg,Polygonal (Landmarker; forehead + cheeks),33.61,-0.17,0.236,53
+FFT,PCA,Polygonal (Landmarker; forehead + cheeks),33.61,-0.17,0.236,53
+FFT,ZCA,Polygonal (Landmarker; forehead + cheeks),33.88,-0.28,0.046,53
+FFT,ICA,Polygonal (Landmarker; forehead + cheeks),35.01,-0.22,0.117,53
+FFT,CHROM,Polygonal (Landmarker; forehead + cheeks),51.57,-0.23,0.100,53
+FFT,POS,Polygonal (Landmarker; forehead + cheeks),51.99,0.24,0.080,53
+WELCH,R,Full frame (baseline),31.76,0.14,0.311,53
+WELCH,G,Full frame (baseline),31.72,-0.02,0.869,53
+WELCH,B,Full frame (baseline),32.0,0.02,0.895,53
+WELCH,GREY Weight,Full frame (baseline),30.36,0.06,0.656,53
+WELCH,GREY Avg,Full frame (baseline),32.07,-0.04,0.768,53
+WELCH,PCA,Full frame (baseline),32.09,-0.04,0.759,53
+WELCH,ZCA,Full frame (baseline),32.03,0.04,0.779,53
+WELCH,ICA,Full frame (baseline),32.24,-0.22,0.119,53
+WELCH,CHROM,Full frame (baseline),33.1,0.07,0.598,53
+WELCH,POS,Full frame (baseline),34.88,-0.06,0.671,53
+WELCH,R,Manual crop ROI,25.53,0.44,<0.001,53
+WELCH,G,Manual crop ROI,28.57,0.36,0.009,53
+WELCH,B,Manual crop ROI,29.0,0.35,0.010,53
+WELCH,GREY Weight,Manual crop ROI,28.28,0.36,0.009,53
+WELCH,GREY Avg,Manual crop ROI,28.38,0.38,0.006,53
+WELCH,PCA,Manual crop ROI,28.38,0.38,0.006,53
+WELCH,ZCA,Manual crop ROI,33.6,-0.05,0.713,53
+WELCH,ICA,Manual crop ROI,27.58,0.11,0.437,53
+WELCH,CHROM,Manual crop ROI,47.06,-0.1,0.496,53
+WELCH,POS,Manual crop ROI,45.19,-0.09,0.518,53
+WELCH,R,Face tracking (BlazeFace),31.27,0.11,0.453,53
+WELCH,G,Face tracking (BlazeFace),29.17,0.22,0.107,53
+WELCH,B,Face tracking (BlazeFace),32.16,0.08,0.566,53
+WELCH,GREY Weight,Face tracking (BlazeFace),28.62,0.24,0.082,53
+WELCH,GREY Avg,Face tracking (BlazeFace),30.42,0.17,0.220,53
+WELCH,PCA,Face tracking (BlazeFace),30.24,0.19,0.181,53
+WELCH,ZCA,Face tracking (BlazeFace),30.42,0.06,0.684,53
+WELCH,ICA,Face tracking (BlazeFace),30.58,0.06,0.651,53
+WELCH,CHROM,Face tracking (BlazeFace),37.46,-0.03,0.822,53
+WELCH,POS,Face tracking (BlazeFace),34.15,0.1,0.477,53
+WELCH,R,Face tracking (BlazeFace forehead),33.34,-0.02,0.866,53
+WELCH,G,Face tracking (BlazeFace forehead),34.69,-0.11,0.422,53
+WELCH,B,Face tracking (BlazeFace forehead),33.53,-0.02,0.883,53
+WELCH,GREY Weight,Face tracking (BlazeFace forehead),33.63,-0.06,0.667,53
+WELCH,GREY Avg,Face tracking (BlazeFace forehead),33.6,-0.06,0.682,53
+WELCH,PCA,Face tracking (BlazeFace forehead),33.36,-0.11,0.417,53
+WELCH,ZCA,Face tracking (BlazeFace forehead),33.98,-0.08,0.549,53
+WELCH,ICA,Face tracking (BlazeFace forehead),36.38,-0.02,0.887,53
+WELCH,CHROM,Face tracking (BlazeFace forehead),42.86,0.24,0.083,53
+WELCH,POS,Face tracking (BlazeFace forehead),47.74,-0.08,0.586,53
+WELCH,R,Polygonal forehead (Landmarker),32.81,0.01,0.932,53
+WELCH,G,Polygonal forehead (Landmarker),33.39,-0.0,0.975,53
+WELCH,B,Polygonal forehead (Landmarker),30.92,0.24,0.078,53
+WELCH,GREY Weight,Polygonal forehead (Landmarker),31.06,0.14,0.329,53
+WELCH,GREY Avg,Polygonal forehead (Landmarker),31.66,0.1,0.467,53
+WELCH,PCA,Polygonal forehead (Landmarker),31.98,0.13,0.365,53
+WELCH,ZCA,Polygonal forehead (Landmarker),35.38,-0.11,0.424,53
+WELCH,ICA,Polygonal forehead (Landmarker),34.18,0.08,0.571,53
+WELCH,CHROM,Polygonal forehead (Landmarker),41.21,0.06,0.692,53
+WELCH,POS,Polygonal forehead (Landmarker),40.87,0.12,0.404,53
+WELCH,R,Polygonal (Landmarker; forehead + cheeks),36.2,-0.24,0.087,53
+WELCH,G,Polygonal (Landmarker; forehead + cheeks),36.56,-0.1,0.472,53
+WELCH,B,Polygonal (Landmarker; forehead + cheeks),34.48,0.04,0.777,53
+WELCH,GREY Weight,Polygonal (Landmarker; forehead + cheeks),36.42,-0.18,0.189,53
+WELCH,GREY Avg,Polygonal (Landmarker; forehead + cheeks),36.19,-0.17,0.220,53
+WELCH,PCA,Polygonal (Landmarker; forehead + cheeks),32.94,-0.1,0.473,53
+WELCH,ZCA,Polygonal (Landmarker; forehead + cheeks),33.03,-0.11,0.416,53
+WELCH,ICA,Polygonal (Landmarker; forehead + cheeks),33.71,0.09,0.543,53
+WELCH,CHROM,Polygonal (Landmarker; forehead + cheeks),51.45,-0.23,0.098,53
+WELCH,POS,Polygonal (Landmarker; forehead + cheeks),52.52,-0.03,0.825,53
+HILBERT,R,Full frame (baseline),24.46,0.02,0.884,53
+HILBERT,G,Full frame (baseline),26.92,-0.34,0.012,53
+HILBERT,B,Full frame (baseline),27.2,-0.32,0.019,53
+HILBERT,GREY Weight,Full frame (baseline),25.22,-0.34,0.012,53
+HILBERT,GREY Avg,Full frame (baseline),26.48,-0.35,0.010,53
+HILBERT,PCA,Full frame (baseline),26.39,-0.34,0.013,53
+HILBERT,ZCA,Full frame (baseline),23.71,-0.05,0.720,54
+HILBERT,ICA,Full frame (baseline),24.21,-0.31,0.023,54
+HILBERT,CHROM,Full frame (baseline),27.17,0.14,0.327,54
+HILBERT,POS,Full frame (baseline),27.06,-0.02,0.906,54
+HILBERT,R,Manual crop ROI,18.93,0.19,0.160,54
+HILBERT,G,Manual crop ROI,24.63,-0.2,0.140,54
+HILBERT,B,Manual crop ROI,20.84,0.16,0.262,54
+HILBERT,GREY Weight,Manual crop ROI,23.69,-0.27,0.046,54
+HILBERT,GREY Avg,Manual crop ROI,24.26,-0.36,0.008,54
+HILBERT,PCA,Manual crop ROI,22.82,-0.01,0.953,54
+HILBERT,ZCA,Manual crop ROI,36.6,-0.43,0.001,53
+HILBERT,ICA,Manual crop ROI,22.23,0.18,0.196,54
+HILBERT,CHROM,Manual crop ROI,49.34,0.25,0.064,54
+HILBERT,POS,Manual crop ROI,47.19,0.13,0.351,54
+HILBERT,R,Face tracking (BlazeFace),25.99,-0.1,0.473,54
+HILBERT,G,Face tracking (BlazeFace),26.85,-0.31,0.021,54
+HILBERT,B,Face tracking (BlazeFace),29.05,-0.6,<0.001,54
+HILBERT,GREY Weight,Face tracking (BlazeFace),27.09,-0.33,0.015,54
+HILBERT,GREY Avg,Face tracking (BlazeFace),28.39,-0.47,<0.001,54
+HILBERT,PCA,Face tracking (BlazeFace),26.9,-0.3,0.030,54
+HILBERT,ZCA,Face tracking (BlazeFace),25.88,-0.42,0.001,54
+HILBERT,ICA,Face tracking (BlazeFace),21.26,0.2,0.142,54
+HILBERT,CHROM,Face tracking (BlazeFace),34.02,0.28,0.038,54
+HILBERT,POS,Face tracking (BlazeFace),33.95,0.02,0.913,54
+HILBERT,R,Face tracking (BlazeFace forehead),27.37,-0.11,0.417,54
+HILBERT,G,Face tracking (BlazeFace forehead),32.16,-0.4,0.003,54
+HILBERT,B,Face tracking (BlazeFace forehead),28.54,-0.33,0.016,54
+HILBERT,GREY Weight,Face tracking (BlazeFace forehead),28.77,-0.2,0.156,54
+HILBERT,GREY Avg,Face tracking (BlazeFace forehead),28.71,-0.21,0.131,54
+HILBERT,PCA,Face tracking (BlazeFace forehead),24.81,-0.32,0.020,53
+HILBERT,ZCA,Face tracking (BlazeFace forehead),30.03,-0.17,0.211,54
+HILBERT,ICA,Face tracking (BlazeFace forehead),33.4,0.26,0.063,53
+HILBERT,CHROM,Face tracking (BlazeFace forehead),50.26,0.82,<0.001,54
+HILBERT,POS,Face tracking (BlazeFace forehead),46.83,0.29,0.034,54
+HILBERT,R,Polygonal forehead (Landmarker),24.2,-0.18,0.200,54
+HILBERT,G,Polygonal forehead (Landmarker),24.82,-0.59,<0.001,54
+HILBERT,B,Polygonal forehead (Landmarker),25.91,-0.32,0.020,53
+HILBERT,GREY Weight,Polygonal forehead (Landmarker),22.23,-0.21,0.125,54
+HILBERT,GREY Avg,Polygonal forehead (Landmarker),24.4,-0.47,<0.001,54
+HILBERT,PCA,Polygonal forehead (Landmarker),23.74,-0.01,0.962,53
+HILBERT,ZCA,Polygonal forehead (Landmarker),24.6,-0.16,0.264,53
+HILBERT,ICA,Polygonal forehead (Landmarker),28.56,-0.36,0.008,53
+HILBERT,CHROM,Polygonal forehead (Landmarker),45.27,-0.03,0.807,54
+HILBERT,POS,Polygonal forehead (Landmarker),44.96,0.16,0.240,54
+HILBERT,R,Polygonal (Landmarker; forehead + cheeks),28.91,-0.4,0.003,54
+HILBERT,G,Polygonal (Landmarker; forehead + cheeks),26.76,-0.1,0.463,54
+HILBERT,B,Polygonal (Landmarker; forehead + cheeks),30.5,-0.47,<0.001,54
+HILBERT,GREY Weight,Polygonal (Landmarker; forehead + cheeks),29.14,-0.37,0.006,54
+HILBERT,GREY Avg,Polygonal (Landmarker; forehead + cheeks),30.94,-0.46,<0.001,54
+HILBERT,PCA,Polygonal (Landmarker; forehead + cheeks),23.72,0.06,0.691,54
+HILBERT,ZCA,Polygonal (Landmarker; forehead + cheeks),27.78,-0.24,0.083,54
+HILBERT,ICA,Polygonal (Landmarker; forehead + cheeks),24.11,-0.08,0.573,54
+HILBERT,CHROM,Polygonal (Landmarker; forehead + cheeks),51.75,0.56,<0.001,54
+HILBERT,POS,Polygonal (Landmarker; forehead + cheeks),54.93,0.62,<0.001,54

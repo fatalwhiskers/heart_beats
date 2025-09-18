@@ -1,0 +1,192 @@
+\begin{table}[htbp]
+\centering
+\caption{All methods for S9 T2: mean absolute error and correlation with ECG.}
+\label{tab:spread_s9_t2}
+\begin{tabular}{l l l r r l r}
+\toprule
+Technique & Method & ROI & MAE (bpm) & r & p & n \\
+\midrule
+FFT & R & Full frame (baseline) & 34.810000 & 0.080000 & 0.558 & 53 \\
+FFT & G & Full frame (baseline) & 32.260000 & -0.070000 & 0.596 & 53 \\
+FFT & B & Full frame (baseline) & 35.670000 & -0.220000 & 0.114 & 53 \\
+FFT & GREY Weight & Full frame (baseline) & 32.340000 & -0.050000 & 0.726 & 53 \\
+FFT & GREY Avg & Full frame (baseline) & 33.460000 & -0.060000 & 0.653 & 53 \\
+FFT & PCA & Full frame (baseline) & 32.160000 & -0.050000 & 0.698 & 53 \\
+FFT & ZCA & Full frame (baseline) & 32.330000 & -0.010000 & 0.931 & 53 \\
+FFT & ICA & Full frame (baseline) & 32.590000 & 0.010000 & 0.951 & 53 \\
+FFT & CHROM & Full frame (baseline) & 38.970000 & -0.250000 & 0.073 & 53 \\
+FFT & POS & Full frame (baseline) & 40.240000 & -0.250000 & 0.070 & 53 \\
+FFT & R & Manual crop ROI & 30.120000 & 0.380000 & 0.005 & 53 \\
+FFT & G & Manual crop ROI & 33.450000 & 0.330000 & 0.016 & 53 \\
+FFT & B & Manual crop ROI & 31.530000 & 0.350000 & 0.010 & 53 \\
+FFT & GREY Weight & Manual crop ROI & 31.640000 & 0.360000 & 0.008 & 53 \\
+FFT & GREY Avg & Manual crop ROI & 31.530000 & 0.410000 & 0.002 & 53 \\
+FFT & PCA & Manual crop ROI & 30.820000 & -0.010000 & 0.962 & 53 \\
+FFT & ZCA & Manual crop ROI & 31.900000 & -0.120000 & 0.394 & 53 \\
+FFT & ICA & Manual crop ROI & 28.500000 & 0.250000 & 0.074 & 53 \\
+FFT & CHROM & Manual crop ROI & 50.630000 & -0.190000 & 0.163 & 53 \\
+FFT & POS & Manual crop ROI & 49.910000 & -0.000000 & 0.981 & 53 \\
+FFT & R & Face tracking (BlazeFace) & 34.580000 & -0.070000 & 0.597 & 53 \\
+FFT & G & Face tracking (BlazeFace) & 32.360000 & -0.020000 & 0.908 & 53 \\
+FFT & B & Face tracking (BlazeFace) & 30.290000 & 0.130000 & 0.352 & 53 \\
+FFT & GREY Weight & Face tracking (BlazeFace) & 33.310000 & -0.050000 & 0.725 & 53 \\
+FFT & GREY Avg & Face tracking (BlazeFace) & 33.130000 & 0.050000 & 0.748 & 53 \\
+FFT & PCA & Face tracking (BlazeFace) & 31.250000 & 0.080000 & 0.578 & 53 \\
+FFT & ZCA & Face tracking (BlazeFace) & 31.660000 & 0.180000 & 0.205 & 53 \\
+FFT & ICA & Face tracking (BlazeFace) & 31.460000 & 0.060000 & 0.685 & 53 \\
+FFT & CHROM & Face tracking (BlazeFace) & 42.380000 & -0.230000 & 0.092 & 53 \\
+FFT & POS & Face tracking (BlazeFace) & 39.880000 & -0.220000 & 0.112 & 53 \\
+FFT & R & Face tracking (BlazeFace forehead) & 35.340000 & -0.180000 & 0.191 & 53 \\
+FFT & G & Face tracking (BlazeFace forehead) & 36.950000 & -0.160000 & 0.261 & 53 \\
+FFT & B & Face tracking (BlazeFace forehead) & 36.610000 & -0.070000 & 0.638 & 53 \\
+FFT & GREY Weight & Face tracking (BlazeFace forehead) & 36.330000 & -0.160000 & 0.252 & 53 \\
+FFT & GREY Avg & Face tracking (BlazeFace forehead) & 36.280000 & -0.170000 & 0.236 & 53 \\
+FFT & PCA & Face tracking (BlazeFace forehead) & 32.370000 & -0.110000 & 0.439 & 53 \\
+FFT & ZCA & Face tracking (BlazeFace forehead) & 31.810000 & 0.040000 & 0.784 & 53 \\
+FFT & ICA & Face tracking (BlazeFace forehead) & 33.560000 & -0.070000 & 0.626 & 53 \\
+FFT & CHROM & Face tracking (BlazeFace forehead) & 45.060000 & 0.310000 & 0.024 & 53 \\
+FFT & POS & Face tracking (BlazeFace forehead) & 48.500000 & -0.060000 & 0.686 & 53 \\
+FFT & R & Polygonal forehead (Landmarker) & 34.870000 & -0.000000 & 0.999 & 53 \\
+FFT & G & Polygonal forehead (Landmarker) & 33.540000 & 0.030000 & 0.840 & 53 \\
+FFT & B & Polygonal forehead (Landmarker) & 35.240000 & 0.020000 & 0.910 & 53 \\
+FFT & GREY Weight & Polygonal forehead (Landmarker) & 33.730000 & -0.040000 & 0.773 & 53 \\
+FFT & GREY Avg & Polygonal forehead (Landmarker) & 34.180000 & -0.070000 & 0.607 & 53 \\
+FFT & PCA & Polygonal forehead (Landmarker) & 33.860000 & -0.000000 & 0.990 & 53 \\
+FFT & ZCA & Polygonal forehead (Landmarker) & 33.650000 & 0.050000 & 0.700 & 53 \\
+FFT & ICA & Polygonal forehead (Landmarker) & 34.190000 & 0.130000 & 0.368 & 53 \\
+FFT & CHROM & Polygonal forehead (Landmarker) & 39.980000 & 0.020000 & 0.900 & 53 \\
+FFT & POS & Polygonal forehead (Landmarker) & 37.250000 & 0.420000 & 0.002 & 53 \\
+FFT & R & Polygonal (Landmarker; forehead + cheeks) & 34.000000 & -0.060000 & 0.653 & 53 \\
+FFT & G & Polygonal (Landmarker; forehead + cheeks) & 35.360000 & -0.120000 & 0.390 & 53 \\
+FFT & B & Polygonal (Landmarker; forehead + cheeks) & 33.620000 & -0.080000 & 0.586 & 53 \\
+FFT & GREY Weight & Polygonal (Landmarker; forehead + cheeks) & 34.700000 & -0.190000 & 0.175 & 53 \\
+FFT & GREY Avg & Polygonal (Landmarker; forehead + cheeks) & 33.610000 & -0.170000 & 0.236 & 53 \\
+FFT & PCA & Polygonal (Landmarker; forehead + cheeks) & 33.610000 & -0.170000 & 0.236 & 53 \\
+FFT & ZCA & Polygonal (Landmarker; forehead + cheeks) & 33.880000 & -0.280000 & 0.046 & 53 \\
+FFT & ICA & Polygonal (Landmarker; forehead + cheeks) & 35.010000 & -0.220000 & 0.117 & 53 \\
+FFT & CHROM & Polygonal (Landmarker; forehead + cheeks) & 51.570000 & -0.230000 & 0.100 & 53 \\
+FFT & POS & Polygonal (Landmarker; forehead + cheeks) & 51.990000 & 0.240000 & 0.080 & 53 \\
+WELCH & R & Full frame (baseline) & 31.760000 & 0.140000 & 0.311 & 53 \\
+WELCH & G & Full frame (baseline) & 31.720000 & -0.020000 & 0.869 & 53 \\
+WELCH & B & Full frame (baseline) & 32.000000 & 0.020000 & 0.895 & 53 \\
+WELCH & GREY Weight & Full frame (baseline) & 30.360000 & 0.060000 & 0.656 & 53 \\
+WELCH & GREY Avg & Full frame (baseline) & 32.070000 & -0.040000 & 0.768 & 53 \\
+WELCH & PCA & Full frame (baseline) & 32.090000 & -0.040000 & 0.759 & 53 \\
+WELCH & ZCA & Full frame (baseline) & 32.030000 & 0.040000 & 0.779 & 53 \\
+WELCH & ICA & Full frame (baseline) & 32.240000 & -0.220000 & 0.119 & 53 \\
+WELCH & CHROM & Full frame (baseline) & 33.100000 & 0.070000 & 0.598 & 53 \\
+WELCH & POS & Full frame (baseline) & 34.880000 & -0.060000 & 0.671 & 53 \\
+WELCH & R & Manual crop ROI & 25.530000 & 0.440000 & <0.001 & 53 \\
+WELCH & G & Manual crop ROI & 28.570000 & 0.360000 & 0.009 & 53 \\
+WELCH & B & Manual crop ROI & 29.000000 & 0.350000 & 0.010 & 53 \\
+WELCH & GREY Weight & Manual crop ROI & 28.280000 & 0.360000 & 0.009 & 53 \\
+WELCH & GREY Avg & Manual crop ROI & 28.380000 & 0.380000 & 0.006 & 53 \\
+WELCH & PCA & Manual crop ROI & 28.380000 & 0.380000 & 0.006 & 53 \\
+WELCH & ZCA & Manual crop ROI & 33.600000 & -0.050000 & 0.713 & 53 \\
+WELCH & ICA & Manual crop ROI & 27.580000 & 0.110000 & 0.437 & 53 \\
+WELCH & CHROM & Manual crop ROI & 47.060000 & -0.100000 & 0.496 & 53 \\
+WELCH & POS & Manual crop ROI & 45.190000 & -0.090000 & 0.518 & 53 \\
+WELCH & R & Face tracking (BlazeFace) & 31.270000 & 0.110000 & 0.453 & 53 \\
+WELCH & G & Face tracking (BlazeFace) & 29.170000 & 0.220000 & 0.107 & 53 \\
+WELCH & B & Face tracking (BlazeFace) & 32.160000 & 0.080000 & 0.566 & 53 \\
+WELCH & GREY Weight & Face tracking (BlazeFace) & 28.620000 & 0.240000 & 0.082 & 53 \\
+WELCH & GREY Avg & Face tracking (BlazeFace) & 30.420000 & 0.170000 & 0.220 & 53 \\
+WELCH & PCA & Face tracking (BlazeFace) & 30.240000 & 0.190000 & 0.181 & 53 \\
+WELCH & ZCA & Face tracking (BlazeFace) & 30.420000 & 0.060000 & 0.684 & 53 \\
+WELCH & ICA & Face tracking (BlazeFace) & 30.580000 & 0.060000 & 0.651 & 53 \\
+WELCH & CHROM & Face tracking (BlazeFace) & 37.460000 & -0.030000 & 0.822 & 53 \\
+WELCH & POS & Face tracking (BlazeFace) & 34.150000 & 0.100000 & 0.477 & 53 \\
+WELCH & R & Face tracking (BlazeFace forehead) & 33.340000 & -0.020000 & 0.866 & 53 \\
+WELCH & G & Face tracking (BlazeFace forehead) & 34.690000 & -0.110000 & 0.422 & 53 \\
+WELCH & B & Face tracking (BlazeFace forehead) & 33.530000 & -0.020000 & 0.883 & 53 \\
+WELCH & GREY Weight & Face tracking (BlazeFace forehead) & 33.630000 & -0.060000 & 0.667 & 53 \\
+WELCH & GREY Avg & Face tracking (BlazeFace forehead) & 33.600000 & -0.060000 & 0.682 & 53 \\
+WELCH & PCA & Face tracking (BlazeFace forehead) & 33.360000 & -0.110000 & 0.417 & 53 \\
+WELCH & ZCA & Face tracking (BlazeFace forehead) & 33.980000 & -0.080000 & 0.549 & 53 \\
+WELCH & ICA & Face tracking (BlazeFace forehead) & 36.380000 & -0.020000 & 0.887 & 53 \\
+WELCH & CHROM & Face tracking (BlazeFace forehead) & 42.860000 & 0.240000 & 0.083 & 53 \\
+WELCH & POS & Face tracking (BlazeFace forehead) & 47.740000 & -0.080000 & 0.586 & 53 \\
+WELCH & R & Polygonal forehead (Landmarker) & 32.810000 & 0.010000 & 0.932 & 53 \\
+WELCH & G & Polygonal forehead (Landmarker) & 33.390000 & -0.000000 & 0.975 & 53 \\
+WELCH & B & Polygonal forehead (Landmarker) & 30.920000 & 0.240000 & 0.078 & 53 \\
+WELCH & GREY Weight & Polygonal forehead (Landmarker) & 31.060000 & 0.140000 & 0.329 & 53 \\
+WELCH & GREY Avg & Polygonal forehead (Landmarker) & 31.660000 & 0.100000 & 0.467 & 53 \\
+WELCH & PCA & Polygonal forehead (Landmarker) & 31.980000 & 0.130000 & 0.365 & 53 \\
+WELCH & ZCA & Polygonal forehead (Landmarker) & 35.380000 & -0.110000 & 0.424 & 53 \\
+WELCH & ICA & Polygonal forehead (Landmarker) & 34.180000 & 0.080000 & 0.571 & 53 \\
+WELCH & CHROM & Polygonal forehead (Landmarker) & 41.210000 & 0.060000 & 0.692 & 53 \\
+WELCH & POS & Polygonal forehead (Landmarker) & 40.870000 & 0.120000 & 0.404 & 53 \\
+WELCH & R & Polygonal (Landmarker; forehead + cheeks) & 36.200000 & -0.240000 & 0.087 & 53 \\
+WELCH & G & Polygonal (Landmarker; forehead + cheeks) & 36.560000 & -0.100000 & 0.472 & 53 \\
+WELCH & B & Polygonal (Landmarker; forehead + cheeks) & 34.480000 & 0.040000 & 0.777 & 53 \\
+WELCH & GREY Weight & Polygonal (Landmarker; forehead + cheeks) & 36.420000 & -0.180000 & 0.189 & 53 \\
+WELCH & GREY Avg & Polygonal (Landmarker; forehead + cheeks) & 36.190000 & -0.170000 & 0.220 & 53 \\
+WELCH & PCA & Polygonal (Landmarker; forehead + cheeks) & 32.940000 & -0.100000 & 0.473 & 53 \\
+WELCH & ZCA & Polygonal (Landmarker; forehead + cheeks) & 33.030000 & -0.110000 & 0.416 & 53 \\
+WELCH & ICA & Polygonal (Landmarker; forehead + cheeks) & 33.710000 & 0.090000 & 0.543 & 53 \\
+WELCH & CHROM & Polygonal (Landmarker; forehead + cheeks) & 51.450000 & -0.230000 & 0.098 & 53 \\
+WELCH & POS & Polygonal (Landmarker; forehead + cheeks) & 52.520000 & -0.030000 & 0.825 & 53 \\
+HILBERT & R & Full frame (baseline) & 24.460000 & 0.020000 & 0.884 & 53 \\
+HILBERT & G & Full frame (baseline) & 26.920000 & -0.340000 & 0.012 & 53 \\
+HILBERT & B & Full frame (baseline) & 27.200000 & -0.320000 & 0.019 & 53 \\
+HILBERT & GREY Weight & Full frame (baseline) & 25.220000 & -0.340000 & 0.012 & 53 \\
+HILBERT & GREY Avg & Full frame (baseline) & 26.480000 & -0.350000 & 0.010 & 53 \\
+HILBERT & PCA & Full frame (baseline) & 26.390000 & -0.340000 & 0.013 & 53 \\
+HILBERT & ZCA & Full frame (baseline) & 23.710000 & -0.050000 & 0.720 & 54 \\
+HILBERT & ICA & Full frame (baseline) & 24.210000 & -0.310000 & 0.023 & 54 \\
+HILBERT & CHROM & Full frame (baseline) & 27.170000 & 0.140000 & 0.327 & 54 \\
+HILBERT & POS & Full frame (baseline) & 27.060000 & -0.020000 & 0.906 & 54 \\
+HILBERT & R & Manual crop ROI & 18.930000 & 0.190000 & 0.160 & 54 \\
+HILBERT & G & Manual crop ROI & 24.630000 & -0.200000 & 0.140 & 54 \\
+HILBERT & B & Manual crop ROI & 20.840000 & 0.160000 & 0.262 & 54 \\
+HILBERT & GREY Weight & Manual crop ROI & 23.690000 & -0.270000 & 0.046 & 54 \\
+HILBERT & GREY Avg & Manual crop ROI & 24.260000 & -0.360000 & 0.008 & 54 \\
+HILBERT & PCA & Manual crop ROI & 22.820000 & -0.010000 & 0.953 & 54 \\
+HILBERT & ZCA & Manual crop ROI & 36.600000 & -0.430000 & 0.001 & 53 \\
+HILBERT & ICA & Manual crop ROI & 22.230000 & 0.180000 & 0.196 & 54 \\
+HILBERT & CHROM & Manual crop ROI & 49.340000 & 0.250000 & 0.064 & 54 \\
+HILBERT & POS & Manual crop ROI & 47.190000 & 0.130000 & 0.351 & 54 \\
+HILBERT & R & Face tracking (BlazeFace) & 25.990000 & -0.100000 & 0.473 & 54 \\
+HILBERT & G & Face tracking (BlazeFace) & 26.850000 & -0.310000 & 0.021 & 54 \\
+HILBERT & B & Face tracking (BlazeFace) & 29.050000 & -0.600000 & <0.001 & 54 \\
+HILBERT & GREY Weight & Face tracking (BlazeFace) & 27.090000 & -0.330000 & 0.015 & 54 \\
+HILBERT & GREY Avg & Face tracking (BlazeFace) & 28.390000 & -0.470000 & <0.001 & 54 \\
+HILBERT & PCA & Face tracking (BlazeFace) & 26.900000 & -0.300000 & 0.030 & 54 \\
+HILBERT & ZCA & Face tracking (BlazeFace) & 25.880000 & -0.420000 & 0.001 & 54 \\
+HILBERT & ICA & Face tracking (BlazeFace) & 21.260000 & 0.200000 & 0.142 & 54 \\
+HILBERT & CHROM & Face tracking (BlazeFace) & 34.020000 & 0.280000 & 0.038 & 54 \\
+HILBERT & POS & Face tracking (BlazeFace) & 33.950000 & 0.020000 & 0.913 & 54 \\
+HILBERT & R & Face tracking (BlazeFace forehead) & 27.370000 & -0.110000 & 0.417 & 54 \\
+HILBERT & G & Face tracking (BlazeFace forehead) & 32.160000 & -0.400000 & 0.003 & 54 \\
+HILBERT & B & Face tracking (BlazeFace forehead) & 28.540000 & -0.330000 & 0.016 & 54 \\
+HILBERT & GREY Weight & Face tracking (BlazeFace forehead) & 28.770000 & -0.200000 & 0.156 & 54 \\
+HILBERT & GREY Avg & Face tracking (BlazeFace forehead) & 28.710000 & -0.210000 & 0.131 & 54 \\
+HILBERT & PCA & Face tracking (BlazeFace forehead) & 24.810000 & -0.320000 & 0.020 & 53 \\
+HILBERT & ZCA & Face tracking (BlazeFace forehead) & 30.030000 & -0.170000 & 0.211 & 54 \\
+HILBERT & ICA & Face tracking (BlazeFace forehead) & 33.400000 & 0.260000 & 0.063 & 53 \\
+HILBERT & CHROM & Face tracking (BlazeFace forehead) & 50.260000 & 0.820000 & <0.001 & 54 \\
+HILBERT & POS & Face tracking (BlazeFace forehead) & 46.830000 & 0.290000 & 0.034 & 54 \\
+HILBERT & R & Polygonal forehead (Landmarker) & 24.200000 & -0.180000 & 0.200 & 54 \\
+HILBERT & G & Polygonal forehead (Landmarker) & 24.820000 & -0.590000 & <0.001 & 54 \\
+HILBERT & B & Polygonal forehead (Landmarker) & 25.910000 & -0.320000 & 0.020 & 53 \\
+HILBERT & GREY Weight & Polygonal forehead (Landmarker) & 22.230000 & -0.210000 & 0.125 & 54 \\
+HILBERT & GREY Avg & Polygonal forehead (Landmarker) & 24.400000 & -0.470000 & <0.001 & 54 \\
+HILBERT & PCA & Polygonal forehead (Landmarker) & 23.740000 & -0.010000 & 0.962 & 53 \\
+HILBERT & ZCA & Polygonal forehead (Landmarker) & 24.600000 & -0.160000 & 0.264 & 53 \\
+HILBERT & ICA & Polygonal forehead (Landmarker) & 28.560000 & -0.360000 & 0.008 & 53 \\
+HILBERT & CHROM & Polygonal forehead (Landmarker) & 45.270000 & -0.030000 & 0.807 & 54 \\
+HILBERT & POS & Polygonal forehead (Landmarker) & 44.960000 & 0.160000 & 0.240 & 54 \\
+HILBERT & R & Polygonal (Landmarker; forehead + cheeks) & 28.910000 & -0.400000 & 0.003 & 54 \\
+HILBERT & G & Polygonal (Landmarker; forehead + cheeks) & 26.760000 & -0.100000 & 0.463 & 54 \\
+HILBERT & B & Polygonal (Landmarker; forehead + cheeks) & 30.500000 & -0.470000 & <0.001 & 54 \\
+HILBERT & GREY Weight & Polygonal (Landmarker; forehead + cheeks) & 29.140000 & -0.370000 & 0.006 & 54 \\
+HILBERT & GREY Avg & Polygonal (Landmarker; forehead + cheeks) & 30.940000 & -0.460000 & <0.001 & 54 \\
+HILBERT & PCA & Polygonal (Landmarker; forehead + cheeks) & 23.720000 & 0.060000 & 0.691 & 54 \\
+HILBERT & ZCA & Polygonal (Landmarker; forehead + cheeks) & 27.780000 & -0.240000 & 0.083 & 54 \\
+HILBERT & ICA & Polygonal (Landmarker; forehead + cheeks) & 24.110000 & -0.080000 & 0.573 & 54 \\
+HILBERT & CHROM & Polygonal (Landmarker; forehead + cheeks) & 51.750000 & 0.560000 & <0.001 & 54 \\
+HILBERT & POS & Polygonal (Landmarker; forehead + cheeks) & 54.930000 & 0.620000 & <0.001 & 54 \\
+\bottomrule
+\end{tabular}
+
+\end{table}

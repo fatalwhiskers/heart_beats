@@ -2,23 +2,30 @@ from dataclasses import dataclass
 
 @dataclass(frozen=False)
 class Video:
-    FPS: int = 35
-    target_FPS: int = 35
-
+    FPS: int = 0
+    target_FPS: int = 0
+    Csv_path = r"outputs"
+    
 @dataclass(frozen=False)
 class rppg:
     window_size: int = 30
-    step_size: int = 10
+    step_size: int = 3
+
+@dataclass(frozen=False)
+class POS:
+    window_size: float  = 2
+    step_size: float  = 0.5
 
 @dataclass(frozen=True)
 class Signal:
-    WINDOW_SECONDS: int = 10
     HR_LOW: float = 0.75      # Hz   (45 bpm)
-    HR_HIGH: float = 3.0      # Hz  (180 bpm)
-    HR_LOW_BPM: float = 45
-    HR_HIGH_BPM: float = 180
-    HR_ORDER = 4
+    HR_HIGH: float = 3      # Hz  (180 bpm)
+    HR_ORDER = 3
 
+class fakeDataset:
+    folder_path = r"data\fakeset"
+    csv_path = r"data\CSVFiles\FakeSettings.csv"
+    output_path = r"outputs"  
 
 @dataclass(frozen=True)
 class fileDataset1:
@@ -31,6 +38,11 @@ class fileDataset2:
     folder_path = r"data\Dataset2"
     csv_path = r"data\CSVFiles\dataset2.csv"
     output_path = r"outputs"  
+
+@dataclass(frozen=True)
+class fileDataset3:
+    folder_path = r"data\Dataset3"
+    csv_path = r"data\CSVFiles\dataset3.csv"
 
 @dataclass(frozen=True)
 class BVP:

@@ -1,274 +1,375 @@
+from __future__ import annotations
+
+import warnings
 import numpy as np
-from .config import Signal, Video
-from scipy import signal, sparse
-from sklearn.decomposition import PCA, FastICA
-from scipy.interpolate import interp1d
+from scipy import signal as sp_signal, sparse
+from scipy.interpolate import interp1d, PchipInterpolator, CubicSpline
 from scipy.signal import butter, filtfilt, detrend, sosfiltfilt
 from scipy.sparse.linalg import spsolve
-import numpy as np
-import warnings
-from sklearn.decomposition import FastICA
+from sklearn.decomposition import PCA, FastICA
 from sklearn.exceptions import ConvergenceWarning
-from scipy import signal
 
-def extract_rgb_signals_BGR(frames):
-    B = frames[:, :, :, 0].mean(axis=(1, 2))
-    G = frames[:, :, :, 1].mean(axis=(1, 2))
-    R = frames[:, :, :, 2].mean(axis=(1, 2))
-    
-    return R, G, B
+from .config import Signal, Video, rppg, POS, PRV
 
-def extract_rgb_signals_BGR_list(frames):
-    R, G, B = [], [], []
-    for f in frames:
-        B.append(f[:, :, 0].mean())
-        G.append(f[:, :, 1].mean())
-        R.append(f[:, :, 2].mean())
-    return np.array(R), np.array(G), np.array(B)
 
-#since doing pca later anyway "standardization"
-def zscore_normalize(signal):
-    return (signal - np.mean(signal)) / (np.std(signal))
 
-def detrend_zscore(signal):
-    """
-    Standardize signal to zero mean and unit variance (global).
-    """
-    return (signal - np.mean(signal)) / (np.std(signal) ) # (np.std(signal) + 1e-8)
+def extract_rgb_signals_BGR(frames: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return frame-wise mean R, G, B from a 4D BGR array [T, H, W, C]."""
+    b_chan = frames[:, :, :, 0].mean(axis=(1, 2))
+    g_chan = frames[:, :, :, 1].mean(axis=(1, 2))
+    r_chan = frames[:, :, :, 2].mean(axis=(1, 2))
+    return r_chan, g_chan, b_chan
 
-def detrend_running_mean(signal, fps, win_sec=1.0):
-    """
-    Detrend by dividing each sample by its local running mean.
-    UBFC-Phys used ~1s window.
-    """
-    win_len = int(fps * win_sec)
-    if win_len < 1:
-        win_len = 1
 
-    # Compute running mean with convolution
-    kernel = np.ones(win_len) / win_len
-    local_mean = np.convolve(signal, kernel, mode='same')
+def extract_rgb_signals_BGR_list(frames: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return frame-wise mean R, G, B from a list of BGR images."""
+    r_vals, g_vals, b_vals = [], [], []
+    for frm in frames:
+        b_vals.append(frm[:, :, 0].mean())
+        g_vals.append(frm[:, :, 1].mean())
+        r_vals.append(frm[:, :, 2].mean())
+    return np.array(r_vals), np.array(g_vals), np.array(b_vals)
 
-    # Avoid divide by zero
-    local_mean[local_mean == 0] = 1e-8
 
-    detrended = signal / local_mean
-    return detrended - np.mean(detrended)  # optional re-centering
+def zscore_normalize(x: np.ndarray) -> np.ndarray:
+    """Return z-scored signal."""
+    x = np.asarray(x, float)
+    return (x - np.mean(x)) / (np.std(x) + 1e-12)
 
-def bandpass_filter_old(signal, fs, lowcut=Signal.HR_LOW, highcut=Signal.HR_HIGH, order=Signal.HR_ORDER):
+
+def detrend_ma_subtract(x: np.ndarray, win_sec: float = 15.0, fps: float | None = None) -> np.ndarray:
+    """Return x minus its centered moving average (preserves channel ratios)."""
+    fs_hz = float(fps if fps is not None else Video.FPS)
+    x = np.asarray(x, float)
+    win = max(1, int(round(fs_hz * win_sec)))
+    if win % 2 == 0:
+        win += 1
+    pad = win // 2
+    x_pad = np.pad(x, (pad, pad), mode="reflect")
+    ma = np.convolve(x_pad, np.ones(win) / win, mode="valid")
+    return x - ma
+
+
+def smoothness_priors_detrend(y: np.ndarray, lam: float = 10.0) -> np.ndarray:
+    """Tarvainen-style smoothness priors detrending; returns y − trend."""
+    y = np.asarray(y, float).reshape(-1)
+    n = y.size
+    eye_n = sparse.eye(n, format="csc")
+    diagonals = [np.ones(n - 2), -2 * np.ones(n - 2), np.ones(n - 2)]
+    d2 = sparse.diags(diagonals, offsets=[0, 1, 2], shape=(n - 2, n), format="csc")
+    a_mat = eye_n + (lam ** 2) * (d2.T @ d2)
+    trend = spsolve(a_mat, y)
+    return y - trend
+
+def upsample_cubic(
+    input_signal: np.ndarray,
+    fs_output: float = PRV.FPS_RESAMPLE_RATE,
+    bc_type: str = "natural",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Upsample a uniformly sampled 1D signal from Video.FPS to fs_output using CubicSpline."""
+    fs_input = float(Video.FPS)
+    x = np.asarray(input_signal, float).ravel()
+    if x.ndim != 1:
+        raise ValueError("input_signal must be 1D")
+    if not np.isfinite(fs_input) or fs_input <= 0:
+        raise ValueError("fs_input must be positive and finite")
+    if not np.isfinite(x).all():
+        raise ValueError("input_signal contains non-finite values")
+
+    n = x.size
+    t_orig = np.arange(n, dtype=float) / fs_input
+    dt_out = 1.0 / float(fs_output)
+    t_end = t_orig[-1]
+    t_resamp = np.arange(0.0, t_end + 0.5 * dt_out, dt_out)
+
+    spl = CubicSpline(t_orig, x, bc_type=bc_type, extrapolate=False)
+    y_resamp = spl(t_resamp)
+    return t_resamp, y_resamp
+
+
+def interpolate_signal_with_timestamps(
+    x: np.ndarray,
+    timestamps: np.ndarray,
+    target_fps: float = 35.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Linearly interpolate (timestamps, x) to a uniform grid at target_fps."""
+    t = np.asarray(timestamps, float).ravel()
+    x = np.asarray(x, float).ravel()
+    t0, t1 = float(t[0]), float(t[-1])
+    n_target = max(1, int((t1 - t0) * target_fps))
+    t_uniform = np.linspace(t0, t1, n_target)
+    f = interp1d(t, x, kind="linear", fill_value="extrapolate", assume_sorted=True)
+    y_uniform = f(t_uniform)
+    return y_uniform, t_uniform
+
+
+def resample_rgb_pchip(
+    R: np.ndarray,
+    G: np.ndarray,
+    B: np.ndarray,
+    timestamps: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Resample R,G,B to a uniform grid at config Video.target_FPS via PCHIP (NaN-safe, dedups timestamps)."""
+    t = np.asarray(timestamps, float)
+    R = np.asarray(R, float)
+    G = np.asarray(G, float)
+    B = np.asarray(B, float)
+
+    order = np.argsort(t)
+    t, R, G, B = t[order], R[order], G[order], B[order]
+    m = np.isfinite(t) & np.isfinite(R) & np.isfinite(G) & np.isfinite(B)
+    t, R, G, B = t[m], R[m], G[m], B[m]
+    if t.size < 2:
+        raise ValueError("Need at least two valid samples")
+
+    if np.any(np.diff(t) == 0):
+        uniq_t, idx, counts = np.unique(t, return_inverse=True, return_counts=True)
+
+        def collapse(arr: np.ndarray) -> np.ndarray:
+            return np.bincount(idx, weights=arr) / counts
+
+        R, G, B, t = collapse(R), collapse(G), collapse(B), uniq_t
+
+    fs_out = float(Video.target_FPS)
+    dt = 1.0 / fs_out
+    t_uniform = np.arange(t[0], t[-1] + 0.5 * dt, dt)
+    t_uniform = t_uniform[t_uniform <= t[-1]]
+
+    fR = PchipInterpolator(t, R, extrapolate=False)
+    fG = PchipInterpolator(t, G, extrapolate=False)
+    fB = PchipInterpolator(t, B, extrapolate=False)
+
+    Rr = fR(t_uniform)
+    Gr = fG(t_uniform)
+    Br = fB(t_uniform)
+
+    keep = np.isfinite(Rr) & np.isfinite(Gr) & np.isfinite(Br)
+    return Rr[keep], Gr[keep], Br[keep], t_uniform[keep]
+
+
+def normalize(x: np.ndarray) -> np.ndarray:
+    """Return zero-mean, unit-variance signal."""
+    x = np.asarray(x, float)
+    return (x - np.mean(x)) / (np.std(x) + 1e-12)
+
+
+def detrend_running_mean(x: np.ndarray, win_sec: float = 1.0) -> np.ndarray:
+    """Divide by local running mean (reflect-pad), then subtract 1."""
+    fs_hz = float(Video.FPS)
+    eps = 1e-8
+    x = np.asarray(x, float).ravel()
+    win = max(1, int(round(fs_hz * win_sec)))
+    if win % 2 == 0:
+        win += 1
+    half = win // 2
+    x_pad = np.pad(x, (half, half), mode="reflect")
+    kernel = np.ones(win, float) / win
+    local_mean = np.convolve(x_pad, kernel, mode="valid")
+    return x / (local_mean + eps) - 1.0
+
+
+def detrend_sig(x: np.ndarray) -> np.ndarray:
+    """Wrapper around scipy.signal.detrend."""
+    return detrend(np.asarray(x, float))
+
+
+def detrend_luminance_only_ma(
+    rgb: np.ndarray,
+    fps: float,
+    win_sec: float = 15.0,
+    keep_mean: bool = True,
+    clip: bool = False,
+) -> np.ndarray:
+    """Detrend only Y in YUV via moving-average subtraction, then back to RGB."""
+    rgb = np.asarray(rgb, float)
+    if rgb.ndim != 2 or rgb.shape[1] != 3:
+        raise ValueError("rgb must be (N, 3)")
+
+    M_rgb2yuv = np.array(
+        [[0.299, 0.587, 0.114], [-0.147, -0.289, 0.436], [0.615, -0.515, -0.100]]
+    )
+    M_yuv2rgb = np.linalg.inv(M_rgb2yuv)
+
+    yuv = rgb @ M_rgb2yuv.T
+    y, u, v = yuv[:, 0], yuv[:, 1], yuv[:, 2]
+
+    y_trend = y - detrend_ma_subtract(y, win_sec=win_sec, fps=fps)
+    y_detr = y - y_trend
+    if keep_mean:
+        y_detr += np.mean(y_trend)
+
+    yuv_d = np.column_stack([y_detr, u, v])
+    rgb_out = yuv_d @ M_yuv2rgb.T
+
+    if clip:
+        lo, hi = rgb.min(), rgb.max()
+        rgb_out = np.clip(rgb_out, lo, hi)
+    return rgb_out
+
+def bandpass_filter_old(
+    x: np.ndarray,
+    fs: float,
+    lowcut: float = Signal.HR_LOW,
+    highcut: float = Signal.HR_HIGH,
+    order: int = Signal.HR_ORDER,
+) -> np.ndarray:
+    """Classic zero-phase band-pass."""
     nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    b, a = butter(order, [low, high], btype='band')
-    return filtfilt(b, a, signal)
+    wn = [lowcut / nyq, highcut / nyq]
+    b, a = butter(order, wn, btype="band")
+    return filtfilt(b, a, np.asarray(x, float))
 
-def bandpass_filter(signal, fs=Video.FPS,
-                    lowcut=Signal.HR_LOW,
-                    highcut=Signal.HR_HIGH,
-                    order=Signal.HR_ORDER):
-    """
-    NaN-safe bandpass for rPPG using your variables.
-    - Filters each contiguous finite segment of `signal` separately.
-    - Leaves gaps as NaN.
-    - Validates cutoffs based on `fs`.
-    """
-    signal = np.asarray(signal, float)
-    filtered = np.full_like(signal, np.nan, dtype=float)
 
-    # guard: bad fs
-    if not np.isfinite(fs) or fs <= 0:
-        return filtered
+def bandpass_filter(
+    x: np.ndarray,
+    lowcut: float = Signal.HR_LOW,
+    highcut: float = Signal.HR_HIGH,
+    order: int = Signal.HR_ORDER,
+) -> np.ndarray:
+    """NaN-safe zero-phase band-pass on finite segments; leaves gaps as NaN."""
+    fs_hz = float(Video.FPS)
+    x = np.asarray(x, float)
+    y = np.full_like(x, np.nan, dtype=float)
+    if not np.isfinite(fs_hz) or fs_hz <= 0:
+        return y
 
-    nyq = 0.5 * float(fs)
+    nyq = 0.5 * fs_hz
     eps = 1e-6
-    low = max(float(lowcut), eps)
-    high = min(float(highcut), nyq - eps)
-    if not (low < high):
-        # invalid band for this fs → return NaNs
-        return filtered
+    lo = max(float(lowcut), eps)
+    hi = min(float(highcut), nyq - eps)
+    if not (lo < hi):
+        return y
 
-    # normalized band + reasonable order
-    wn = [low / nyq, high / nyq]
+    lo_n, hi_n = lo / nyq, hi / nyq
     order = int(max(1, min(int(order), 6)))
-    sos = butter(order, wn, btype='band', output='sos')
+    b, a = butter(order, [lo_n, hi_n], btype="band", output="ba")
 
-    # contiguous finite segments (no NaNs)
-    finite = np.isfinite(signal)
+    finite = np.isfinite(x)
     if not finite.any():
-        return filtered
+        return y
 
     edges = np.flatnonzero(np.diff(np.r_[False, finite, False]))
     segs = list(zip(edges[0::2], edges[1::2]))
-
-    # need ~2 s minimum per segment for stable zero-phase filtering
-    min_len = max(8, int(round(2.0 * fs)))
+    min_len = max(8, int(round(2.0 * fs_hz)))
 
     for s, e in segs:
         if (e - s) < min_len:
             continue
-
-        L = e - s
-        seg = signal[s:e].astype(float, copy=False)
-        dc  = np.nanmedian(seg)
-        x   = seg - dc
-
-        b, a = butter(order, [low/nyq, high/nyq], btype='band', output='ba')
-        padlen = min(L - 1, max(1, 3 * (max(len(a), len(b)) - 1)))
-        y = filtfilt(b, a, x, padlen=padlen)
-
-        filtered[s:e] = y  # (omit +dc for a true band-pass)
-
-    return filtered
-
-def get_heart_rate(signal, fs, low=0.7, high=4.0):
-    n = len(signal)
-    freqs = np.fft.rfftfreq(n, d=1/fs)
-    fft_values = np.abs(np.fft.rfft(signal))
-
-    # Limit to heart rate range (in Hz)
-    valid = (freqs >= low) & (freqs <= high)
-    freqs = freqs[valid]
-    fft_values = fft_values[valid]
-
-    # Find peak frequency
-    peak_freq = freqs[np.argmax(fft_values)]
-    bpm = peak_freq * 60  # Convert Hz to BPM
-    return bpm
-
-import numpy as np
-
-def interpolate_signal_with_timestamps(signal,
-                                       timestamps,
-                                       target_fps=None,
-                                       t_uniform=None,
-                                       max_gap_sec=0.5):
-    """
-    Interpolate a (possibly NaN-containing) time series to a uniform time grid.
-
-    - If t_uniform is None: builds a grid using target_fps; if target_fps is None or <=0,
-      it uses the median dt from timestamps.
-    - No edge extrapolation: samples outside the convex hull of valid data are NaN.
-    - Long gaps (> max_gap_sec between surrounding valid samples) are set to NaN.
-
-    Returns: x_uniform, t_uniform
-    """
-    x = np.asarray(signal, dtype=float)
-    t = np.asarray(timestamps, dtype=float)
-
-    if x.size != t.size or x.size < 2:
-        return np.array([]), np.array([])
-
-    # sort by time; drop non-finite timestamps
-    order = np.argsort(t)
-    t = t[order]
-    x = x[order]
-    finite_t = np.isfinite(t)
-    t = t[finite_t]
-    x = x[finite_t]
-    if t.size < 2:
-        return np.array([]), np.array([])
-
-    # deduplicate timestamps (keep first)
-    t, keep_idx = np.unique(t, return_index=True)
-    x = x[keep_idx]
-
-    # build/accept uniform grid
-    if t_uniform is None:
-        if target_fps is None or target_fps <= 0:
-            dt = float(np.median(np.diff(t)))
-        else:
-            dt = 1.0 / float(target_fps)
-        if not np.isfinite(dt) or dt <= 0:
-            dt = 1.0 / 35.0  # safe default
-        t_uniform = np.arange(t[0], t[-1] + 1e-9, dt)
-    else:
-        t_uniform = np.asarray(t_uniform, dtype=float)
-
-    # use only valid (non-NaN) samples for interpolation
-    valid = np.isfinite(x)
-    if valid.sum() < 2:
-        return np.full_like(t_uniform, np.nan, dtype=float), t_uniform
-
-    tv = t[valid]
-    xv = x[valid]
-
-    # linear interpolation on the uniform grid
-    x_uniform = np.interp(t_uniform, tv, xv)
-
-    # mask outside valid-data span (no edge extrapolation)
-    outside = (t_uniform < tv[0]) | (t_uniform > tv[-1])
-    x_uniform[outside] = np.nan
-
-    # re-NaN long gaps by checking distance between bracketing valid samples
-    # ensure indices are inside [1, len(tv)-1] so we always have a pair
-    idx_right = np.searchsorted(tv, t_uniform, side='left')
-    idx_right = np.clip(idx_right, 1, len(tv) - 1)
-    idx_left = idx_right - 1
-    span = tv[idx_right] - tv[idx_left]
-    x_uniform[span > max_gap_sec] = np.nan
-
-    return x_uniform, t_uniform
+        seg = x[s:e].astype(float, copy=False)
+        seg_dc = np.nanmedian(seg)
+        seg = seg - seg_dc
+        padlen = min((e - s) - 1, max(1, 3 * (max(len(a), len(b)) - 1)))
+        y[s:e] = filtfilt(b, a, seg, padlen=padlen)
+    return y
 
 
+def bandpass_filter_g(
+    x: np.ndarray,
+    lowcut: float = Signal.HR_LOW,
+    highcut: float = Signal.HR_HIGH,
+    order: int = Signal.HR_ORDER,
+) -> np.ndarray:
+    """NaN-safe zero-phase band-pass using SOS for numerical stability."""
+    fs_hz = float(Video.FPS)
+    x = np.asarray(x, float)
+    y = np.full_like(x, np.nan, dtype=float)
+    if not np.isfinite(fs_hz) or fs_hz <= 0:
+        return y
 
-def extract_pca_components(R, G, B, n_components=3):
-    X = np.column_stack([R, G, B]).astype(float)        # shape (T,3)
-    comps = np.full((len(X), n_components), np.nan)     # output aligned to timeline
+    nyq = 0.5 * fs_hz
+    eps = 1e-6
+    lo = max(float(lowcut), eps)
+    hi = min(float(highcut), nyq - eps)
+    if not (lo < hi):
+        return y
 
-    # rows where all three channels are finite
+    wn = [lo / nyq, hi / nyq]
+    order = int(max(1, min(int(order), 6)))
+    sos = butter(order, wn, btype="band", output="sos")
+
+    finite = np.isfinite(x)
+    if not finite.any():
+        return y
+
+    edges = np.flatnonzero(np.diff(np.r_[False, finite, False]))
+    segs = list(zip(edges[0::2], edges[1::2]))
+    min_len = max(8, int(round(2.0 * fs_hz)))
+
+    for s, e in segs:
+        if (e - s) < min_len:
+            continue
+        seg = x[s:e].astype(float, copy=False)
+        seg_dc = np.nanmedian(seg)
+        seg = seg - seg_dc
+        padlen = min((e - s) - 1, max(1, 3 * (2 * order)))
+        y[s:e] = sosfiltfilt(sos, seg, padlen=padlen)
+    return y
+
+
+def get_heart_rate(x: np.ndarray, fs: float, low: float = 0.7, high: float = 4.0) -> float:
+    """Return HR (BPM) from max FFT peak within [low, high] Hz."""
+    x = np.asarray(x, float)
+    n = x.size
+    freqs = np.fft.rfftfreq(n, d=1.0 / fs)
+    spectrum = np.abs(np.fft.rfft(x))
+    band = (freqs >= low) & (freqs <= high)
+    if not band.any():
+        return float("nan")
+    peak_hz = freqs[band][np.argmax(spectrum[band])]
+    return float(60.0 * peak_hz)
+
+def extract_pca_components(R: np.ndarray, G: np.ndarray, B: np.ndarray, n_components: int = 3) -> np.ndarray:
+    """Return PCA components aligned to full timeline; NaN rows are skipped for fit/transform."""
+    X = np.column_stack([R, G, B]).astype(float)
+    comps = np.full((len(X), n_components), np.nan)
     mask = np.isfinite(X).all(axis=1)
     if mask.sum() < n_components + 1:
         print(f"[PCA] Not enough finite rows: {mask.sum()}")
         return comps
-
     pca = PCA(n_components=n_components)
-    comps_mask = pca.fit_transform(X[mask])             # fit/transform only valid rows
+    comps_mask = pca.fit_transform(X[mask])
     comps[mask] = comps_mask
     return comps
 
 
-def zca_whiten(R, G, B, epsilon=1e-5):
-    X = np.column_stack([R, G, B]).astype(float)        # (T,3)
+def zca_whiten(R: np.ndarray, G: np.ndarray, B: np.ndarray, epsilon: float = 1e-5) -> np.ndarray:
+    """Return ZCA-whitened channels aligned to full timeline; NaN rows are skipped."""
+    X = np.column_stack([R, G, B]).astype(float)
     Xz = np.full_like(X, np.nan)
     mask = np.isfinite(X).all(axis=1)
     if mask.sum() < 3:
         print(f"[ZCA] Not enough finite rows: {mask.sum()}")
         return Xz
-
     Xm = X[mask] - np.mean(X[mask], axis=0)
-    # covariance (3x3)
     sigma = np.cov(Xm, rowvar=False)
-    # regularize a touch to avoid tiny/negative eigenvalues
     U, S, _ = np.linalg.svd(sigma + epsilon * np.eye(sigma.shape[0]), full_matrices=False)
     W = U @ np.diag(1.0 / np.sqrt(S)) @ U.T
     Xz[mask] = Xm @ W.T
-    return Xz   
+    return Xz
 
 
-def ICA_Test(R, G, B, fs= Video.FPS, max_iter=1000):
-    X = np.column_stack([R, G, B]).astype(float)  # (T,3)
-    S = np.full_like(X, np.nan)                   # sources aligned to timeline
-
+def ICA_Test(R: np.ndarray, G: np.ndarray, B: np.ndarray, max_iter: int = 1000):
+    """Run FastICA on RGB; return sources aligned to full timeline and Welch PSD (freqs, psd)."""
+    X = np.column_stack([R, G, B]).astype(float)
+    S = np.full_like(X, np.nan)
+    fs_hz = float(Video.FPS)
     mask = np.isfinite(X).all(axis=1)
     n_valid = int(mask.sum())
     if n_valid < 10:
         print(f"[ICA] Not enough finite rows: {n_valid}")
         return S, (None, None)
 
-    # sklearn version differences: whiten=True (old), 'unit-variance' (new)
     try:
-        ica = FastICA(n_components=3, whiten='unit-variance',
-                      max_iter=max_iter, tol=1e-4, random_state=0)
+        ica = FastICA(n_components=3, whiten="unit-variance", max_iter=max_iter, tol=1e-4, random_state=0)
     except TypeError:
-        ica = FastICA(n_components=3, whiten=True,
-                      max_iter=max_iter, tol=1e-4, random_state=0)
+        ica = FastICA(n_components=3, whiten=True, max_iter=max_iter, tol=1e-4, random_state=0)
 
     with warnings.catch_warnings(record=True) as wlist:
         warnings.filterwarnings("always", category=ConvergenceWarning)
         try:
             S_mask = ica.fit_transform(X[mask])
-        except Exception as e:
-            print(f"[ICA ERROR] FastICA failed: {e}")
+        except Exception as exc:
+            print(f"[ICA ERROR] FastICA failed: {exc}")
             return S, (None, None)
         for w in wlist:
             if issubclass(w.category, ConvergenceWarning):
@@ -276,113 +377,154 @@ def ICA_Test(R, G, B, fs= Video.FPS, max_iter=1000):
 
     S[mask] = S_mask
 
-    # Welch PSD per component on the finite segment only
-    n = n_valid
-    # pick a reasonable segment length (e.g., ~8 s) but cap by available samples
-    nperseg = max(64, min(int(round(8 * fs)), n))
-    freqs, psd = signal.welch(S_mask, fs=fs, nperseg=nperseg, axis=0)
+    nperseg = max(64, min(int(round(8 * fs_hz)), n_valid))
+    freqs, psd = sp_signal.welch(S_mask, fs=fs_hz, nperseg=nperseg, axis=0)
     return S, (freqs, psd)
 
-
-def detrend_sig(signal):
-    return detrend(signal)
-
-def save_rgb_signals(file_path, R, G, B):
-    np.savez(file_path, R=R, G=G, B=B)
-
-def load_rgb_signals(file_path):
-    data = np.load(file_path)
-    return data['R'], data['G'], data['B']
-
-def chrom_pos_windowed(R, G, B, win_sec=2, step_sec=0.8, method='CHROM', fps=35):
-    if fps is None: fps = float(Video.FPS)
-    R, G, B = map(lambda x: (x - np.mean(x)) / (np.std(x) + 1e-8), [R,G,B])
+def pos_windowed(R: np.ndarray, G: np.ndarray, B: np.ndarray, win_sec: float = 1.6) -> np.ndarray:
+    """Overlap-accumulate POS projection using per-window mean normalization."""
+    fs_hz = float(Video.FPS)
+    eps = 1e-9
+    R = np.asarray(R, float)
+    G = np.asarray(G, float)
+    B = np.asarray(B, float)
     n = len(R)
-    w = max(8, int(win_sec * fps))
-    s = max(1, int(step_sec * fps))
-    out = np.zeros(n, float); wsum = np.zeros(n, float)
-    hann = np.hanning(w)
+    w = max(1, min(int(round(win_sec * fs_hz)), n))
+    out = np.zeros(n, float)
+
+    for n_idx in range(w, n):
+        m_idx = n_idx - w + 1
+        r = R[m_idx : n_idx + 1] / (R[m_idx : n_idx + 1].mean() + eps) - 1.0
+        g = G[m_idx : n_idx + 1] / (G[m_idx : n_idx + 1].mean() + eps) - 1.0
+        b = B[m_idx : n_idx + 1] / (B[m_idx : n_idx + 1].mean() + eps) - 1.0
+        y1 = g - b
+        y2 = g + b - 2.0 * r
+        alpha = np.std(y1, ddof=0) / (np.std(y2, ddof=0) + eps)
+        y = (y1 + alpha * y2) - (y1 + alpha * y2).mean()
+        out[m_idx : n_idx + 1] += y
+    return out
+
+
+def chrom_pos_windowed(
+    R: np.ndarray,
+    G: np.ndarray,
+    B: np.ndarray,
+    win_sec: float = POS.window_size,
+    step_sec: float = POS.step_size,
+    method: str = "CHROM",
+) -> np.ndarray:
+    """Windowed CHROM/POS with Hann overlap-add and per-window normalization."""
+    fs_hz = float(Video.FPS)
+    eps = 1e-8
+    R = np.asarray(R, float)
+    G = np.asarray(G, float)
+    B = np.asarray(B, float)
+    n = len(R)
+
+    w = max(8, int(round(win_sec * fs_hz)))
+    w = min(w, n)
+    s = max(1, int(round(step_sec * fs_hz)))
+
+    out = np.zeros(n, float)
+    wsum = np.zeros(n, float)
+    win = np.hanning(w)
+    kind = (method or "CHROM").upper()
+    if kind not in ("CHROM", "POS"):
+        raise ValueError("method must be 'CHROM' or 'POS'")
+
     for start in range(0, n - w + 1, s):
-        r = R[start:start+w]; g = G[start:start+w]; b = B[start:start+w]
-        if method == 'CHROM':
-            x = 3*r - 2*g
-            y = 1.5*r + g - 1.5*b
-            a = (np.std(x)+1e-8) / (np.std(y)+1e-8)
-            y = x - a*y
-        else:  # POS
+        sl = slice(start, start + w)
+        r = R[sl].copy()
+        g = G[sl].copy()
+        b = B[sl].copy()
+
+        r = r / (r.mean() + eps) - 1.0
+        g = g / (g.mean() + eps) - 1.0
+        b = b / (b.mean() + eps) - 1.0
+
+        if kind == "CHROM":
+            x = 3.0 * r - 2.0 * g
+            y = 1.5 * r + g - 1.5 * b
+            a = (np.std(x, ddof=1) + eps) / (np.std(y, ddof=1) + eps)
+            y = x - a * y
+        else:
             y1 = g - b
-            y2 = g + b - 2*r
-            a  = (np.std(y1)+1e-8) / (np.std(y2)+1e-8)
-            y  = y1 + a*y2
-        y = (y - np.mean(y)) / (np.std(y) + 1e-8)
-        y = y * hann
-        out[start:start+w] += y
-        wsum[start:start+w] += hann
-    return np.divide(out, np.maximum(wsum, 1e-8))
+            y2 = g + b - 2.0 * r
+            a = (np.std(y1, ddof=1) + eps) / (np.std(y2, ddof=1) + eps)
+            y = y1 + a * y2
 
-def chrom_pos_windowed_nan(R, G, B, win_sec=2, step_sec=0.8, method='CHROM', fps=35):
-    """
-    NaN-safe CHROM/POS windowing.
+        y = (y - y.mean()) / (np.std(y, ddof=1) + eps)
+        out[sl] += y * win
+        wsum[sl] += win
 
-    - Ignores samples where any of R, G, or B is NaN/inf for that frame.
-    - Window mean/std are computed only over valid samples.
-    - Windows with <2 valid samples contribute nothing.
-    - Positions with no coverage are returned as NaN.
-    """
-    EPS = 1e-8
+    pulse = np.zeros_like(out)
+    nz = wsum > eps
+    pulse[nz] = out[nz] / (wsum[nz] + eps)
+    return pulse - pulse.mean()
 
-    if fps is None:
-        fps = float(Video.FPS)
 
-    R = np.asarray(R, dtype=float)
-    G = np.asarray(G, dtype=float)
-    B = np.asarray(B, dtype=float)
+def chrom_pos_windowed_nan(
+    R: np.ndarray,
+    G: np.ndarray,
+    B: np.ndarray,
+    win_sec: float = 2.0,
+    step_sec: float = 0.8,
+    method: str = "CHROM",
+    fps: float = 35.0,
+) -> np.ndarray:
+    """NaN-safe CHROM/POS with Hann overlap-add; positions with no coverage return NaN."""
+    eps = 1e-8
+    fs_hz = float(Video.FPS)
+    R = np.asarray(R, float)
+    G = np.asarray(G, float)
+    B = np.asarray(B, float)
 
-    def zscore_nan(x):
-        m = np.nanmean(x)
-        s = np.nanstd(x)
-        if not np.isfinite(m): m = 0.0
-        if not np.isfinite(s) or s < 1e-12: s = 1.0
-        return (x - m) / (s + EPS)
+    def zscore_nan(arr: np.ndarray) -> np.ndarray:
+        m = np.nanmean(arr)
+        s = np.nanstd(arr)
+        if not np.isfinite(m):
+            m = 0.0
+        if not np.isfinite(s) or s < 1e-12:
+            s = 1.0
+        return (arr - m) / (s + eps)
 
     R = zscore_nan(R)
     G = zscore_nan(G)
     B = zscore_nan(B)
 
     n = len(R)
-    w = max(8, int(round(win_sec * fps)))
-    s = max(1, int(round(step_sec * fps)))
-
-    out  = np.zeros(n, float)
-    wsum = np.zeros(n, float)
+    w = max(8, int(round(win_sec * fs_hz)))
+    s = max(1, int(round(step_sec * fs_hz)))
     if w <= 1 or n == 0:
         return np.full(n, np.nan, float)
 
-    hann = np.hanning(w)
-
-    mth = (method or 'CHROM').upper()
-    if mth not in ('CHROM', 'POS'):
+    out = np.zeros(n, float)
+    wsum = np.zeros(n, float)
+    win = np.hanning(w)
+    kind = (method or "CHROM").upper()
+    if kind not in ("CHROM", "POS"):
         raise ValueError("method must be 'CHROM' or 'POS'")
 
     for start in range(0, n - w + 1, s):
         sl = slice(start, start + w)
-        r = R[sl]; g = G[sl]; b = B[sl]
-
+        r = R[sl]
+        g = G[sl]
+        b = B[sl]
         valid = np.isfinite(r) & np.isfinite(g) & np.isfinite(b)
         idx = np.nonzero(valid)[0]
         if idx.size < 2:
             continue
 
-        if mth == 'CHROM':
+        if kind == "CHROM":
             x = 3.0 * r - 2.0 * g
             y = 1.5 * r + 1.0 * g - 1.5 * b
-            a = (np.nanstd(x[valid]) + EPS) / (np.nanstd(y[valid]) + EPS)
+            a = (np.nanstd(x[valid]) + eps) / (np.nanstd(y[valid]) + eps)
             y = x - a * y
-        else:  # POS
+        else:
             y1 = g - b
             y2 = g + b - 2.0 * r
-            a  = (np.nanstd(y1[valid]) + EPS) / (np.nanstd(y2[valid]) + EPS)
-            y  = y1 + a * y2
+            a = (np.nanstd(y1[valid]) + eps) / (np.nanstd(y2[valid]) + eps)
+            y = y1 + a * y2
 
         ym = np.nanmean(y[valid])
         ys = np.nanstd(y[valid])
@@ -390,58 +532,103 @@ def chrom_pos_windowed_nan(R, G, B, win_sec=2, step_sec=0.8, method='CHROM', fps
             continue
 
         yz = np.zeros_like(y)
-        yz[valid] = (y[valid] - ym) / (ys + EPS)
+        yz[valid] = (y[valid] - ym) / (ys + eps)
 
         abs_idx = start + idx
-        h_idx = hann[idx]
-        out[abs_idx]  += yz[idx] * h_idx
+        h_idx = win[idx]
+        out[abs_idx] += yz[idx] * h_idx
         wsum[abs_idx] += h_idx
 
-    # Return NaN where there was no coverage
     res = np.full(n, np.nan, float)
-    mask = wsum > 0
-    res[mask] = out[mask] / (wsum[mask] + EPS)
+    msk = wsum > 0
+    res[msk] = out[msk] / (wsum[msk] + eps)
     return res
 
-#Tarvainen, M. P., Ranta-aho, P. O., & Karjalainen, P. A. (2002). An advanced detrending method with application to HRV analysis. IEEE Transactions on Biomedical Engineering, 49(2). https://doi.org/10.1109/10.979357
+def detrend_signal_nan(x: np.ndarray, lambda_param: float = 300.0) -> np.ndarray:
+    """Smoothness-priors detrend with linear interpolation over NaNs; NaNs restored after."""
+    x = np.asarray(x, float)
+    n = x.size
+    nan_mask = np.isnan(x)
+    if nan_mask.all():
+        return x
+    idx = np.arange(n)
+    if nan_mask.any():
+        x_filled = x.copy()
+        x_filled[nan_mask] = np.interp(idx[nan_mask], idx[~nan_mask], x[~nan_mask])
+    else:
+        x_filled = x
 
-def detrend_signal(signal, lambda_param=300):
-    """Detrend a signal using smoothness priors (Tarvainen et al. 2002)."""
-    num_samples = len(signal)
+    I = sparse.eye(n, format="csc")
+    e = np.ones(n)
+    D = sparse.diags([e, -2 * e, e], [0, 1, 2], shape=(n - 2, n), format="csc")
+    A = I + (lambda_param ** 2) * (D.T @ D)
+    trend = spsolve(A, x_filled)
+    y = x_filled - trend
+    y[nan_mask] = np.nan
+    return y
 
-    # Identity matrix (size: num_samples x num_samples)
-    identity_matrix = sparse.eye(num_samples, format='csc')
 
-    # Second-order difference matrix D: shape (num_samples-2, num_samples)
-    e = np.ones(num_samples)
-    diff_matrix = sparse.diags([e, -2*e, e], [0, 1, 2],
-                               shape=(num_samples-2, num_samples), format='csc')
+def detrend_signal(x: np.ndarray, lambda_param: float = 300.0) -> np.ndarray:
+    """Smoothness-priors detrend without NaN handling."""
+    x = np.asarray(x, float)
+    n = x.size
+    I = sparse.eye(n, format="csc")
+    e = np.ones(n)
+    D = sparse.diags([e, -2 * e, e], [0, 1, 2], shape=(n - 2, n), format="csc")
+    A = I + (lambda_param ** 2) * (D.T @ D)
+    trend = spsolve(A, x)
+    return x - trend
 
-    # Construct the smoothing operator (I + lambda^2 * D^T D)
-    smoothing_matrix = identity_matrix + (lambda_param**2) * (diff_matrix.T @ diff_matrix)
-
-    # Solve the linear system to obtain the trend estimate
-    trend_estimate = spsolve(smoothing_matrix, signal)
-
-    # Subtract the trend from the original signal
-    detrended_signal = signal - trend_estimate
-
-    return detrended_signal
-
-def sliding_mean_normalize(x, fs, win_sec=1.5, eps=1e-8):
-    n = max(1, int(round(win_sec * fs)))
+def sliding_mean_normalize(x: np.ndarray, fs: float, win_sec: float = 1.5, eps: float = 1e-8) -> np.ndarray:
+    """Normalize by centered moving average over a window of win_sec seconds."""
+    n_win = max(1, int(round(win_sec * fs)))
     x = np.asarray(x, float)
     m = np.isfinite(x).astype(float)
     x0 = np.nan_to_num(x, nan=0.0)
-
-    # moving sums (ignore NaNs via mask)
-    kern = np.ones(n, float)
-    num = np.convolve(x0, kern, mode='same')
-    den = np.convolve(m,  kern, mode='same')
-
+    kern = np.ones(n_win, float)
+    num = np.convolve(x0, kern, mode="same")
+    den = np.convolve(m, kern, mode="same")
     ma = num / np.maximum(den, eps)
-    y = (x - ma) / np.maximum(ma, eps)
+    return (x - ma) / np.maximum(ma, eps)
 
-    # if a window had no valid samples, keep NaN there
-    y[den < 1] = np.nan
-    return y
+
+def fill_short_gaps_then_drop(
+    x: np.ndarray,
+    t: np.ndarray | None = None,
+    max_gap_s: float = 0.2,
+):
+    """
+    Fill short NaN gaps (≤ max_gap_s) by linear interpolation; drop longer gaps.
+    Returns (x_clean, t_clean, mask_valid, idx_valid, reinsert_fn).
+    """
+    fs_hz = float(Video.FPS)
+    x = np.asarray(x, float)
+    n = x.size
+    if t is None:
+        t_vec = np.arange(n, dtype=float) / fs_hz
+    else:
+        t_vec = np.asarray(t, float)
+
+    max_gap = int(round(max_gap_s * fs_hz))
+    idx_all = np.arange(n)
+    nan_mask = np.isnan(x)
+
+    if nan_mask.any():
+        starts = np.where(np.diff(np.r_[False, nan_mask, False]) == 1)[0]
+        ends = np.where(np.diff(np.r_[False, nan_mask, False]) == -1)[0]
+        for s, e in zip(starts, ends):
+            gap_len = e - s
+            if gap_len <= max_gap:
+                x[s:e] = np.interp(idx_all[s:e], idx_all[~nan_mask], x[~nan_mask])
+
+    valid_mask = ~np.isnan(x)
+    idx_valid = np.where(valid_mask)[0]
+    x_clean = x[valid_mask]
+    t_clean = t_vec[valid_mask]
+
+    def reinsert(y_proc: np.ndarray) -> np.ndarray:
+        y_full = np.full_like(x, np.nan, dtype=float)
+        y_full[idx_valid] = y_proc
+        return y_full
+
+    return x_clean, t_clean, valid_mask, idx_valid, reinsert

@@ -1,0 +1,2 @@
+method,roi,n_subjects,n_videos,mae_mean,mae_median,rmse_mean,rmse_median,r_mean,r_median,agreement_r,agreement_r_lo95,agreement_r_hi95,ba_bias,ba_sd,ba_loa_lo,ba_loa_hi,failure_thresh,failure_rate_pct
+PCA,poly,53,629,8.0364,6.18,8.9749,7.23,0.0579,0.071,0.7049,0.6632,0.7421,-0.3831,9.6305,-19.6441,18.8779,10.0,26.5501

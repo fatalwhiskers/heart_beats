@@ -1663,3 +1663,25 @@ data/Dataset2/Physiological/r0a3/r0a3_Breathing.txt
 data/Dataset2/Physiological/r0a3/r0a3_Counting1.txt
 data/Dataset2/Physiological/r0a3/r0a3_Counting2.txt
 data/___All_Errors.txt
+data/CSVFiles/dataset2 copy.csv
+data/CSVFiles/dataset3.csv
+data/CSVFiles/FakeSetttings.csv
+data/CSVFiles/Settings.csv
+data/Dataset1/vid_s9_T1.avi
+data/Dataset1/vid_s9_T2.avi
+data/Dataset1/vid_s9_T3.avi
+data/Dataset1/vid_s34_T2.avi
+data/Dataset1/vid_s34_T3.avi
+data/Dataset3/Markiplier_Baseline_2.mp4
+data/Dataset3/Markiplier_Baseline_3.mp4
+data/Dataset3/Markiplier_Baseline_4.mp4
+data/Dataset3/Markiplier_Baseline_5.mp4
+data/Dataset3/Markiplier_baseline.mp4
+data/Dataset3/Markiplier_Giant_Baby_1.mp4
+data/Dataset3/Markiplier_Giant_Baby_2.mp4
+data/Dataset3/Markiplier_Giant_Baby_3.mp4
+data/Dataset3/Markiplier_Scared.mp4
+data/Dataset3/Well_Corrected.mp4
+data/fakedata/blue_only.mp4
+data/fakedata/green_only.mp4
+data/fakedata/red_only.mp4
