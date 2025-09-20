@@ -1,6 +1,5 @@
 import src.Video_extraction as VE
 import src.not_working.BVP as BVP
-import src.PRV_1 as prv
 import src.hilbert_prv as hilly
 import src.rppg as rPPG
 import src.not_working.testv2BVP as vid
@@ -211,9 +210,16 @@ def smooth_signal(sig, window_size=5):
 def build_table(signal_data, time_array, label, crop_mode, filename, file_CSV):
 
    # _, signal_data = ext.upsample_cubic(signal_data)
-    window_centers_t_fft, hr_estimates_fft = rPPG.estimate_hr_fft_nt(time_array, signal_data)
+    window_centers_t_fft, hr_estimates_fft = rPPG.estimate_hr_pyvhr_nt(time_array, signal_data)
 
     window_centers_t_welch, hr_estimates_welch = rPPG.estimate_hr_welch_nk(time_array, signal_data)
+
+    plt.figure(); 
+    plt.plot(window_centers_t_fft, hr_estimates_fft,  label="FFT/BPM (pyVHR)", marker='o') 
+    plt.plot(window_centers_t_welch, hr_estimates_welch,label="Welch (nk)",      marker='s')
+    plt.xlabel("Time (s)"); plt.ylabel("HR (bpm)"); plt.legend(); plt.title("HR estimates"); 
+    plt.show()
+
 
     pp_clean, hr_inst_clean, hr_inst_raw, t_mid_pp, _, _  = hilly.estimate_prv_hilbert_simple(time_array, signal_data)  
     total_duration = float(np.max(t_mid_pp))
