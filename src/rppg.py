@@ -59,6 +59,57 @@ def sliding_fft_hr(rppg_signal, timestamps):
 
     return np.array(times), np.array(hr_values), np.array(psd_accum), freqs_band
 
+def estimate_hr_pyvhr_nt(timestamps, signal):
+    from pyVHR.BPM import BPM
+
+    fs_target = PRV.FPS_RESAMPLE_RATE
+    hr_low_hz = Signal.HR_LOW
+    hr_high_hz = Signal.HR_HIGH
+    window_size = rppg.window_size
+    step_size = rppg.step_size
+
+    if fs_target is None:
+        fs_target = float(PRV.FPS_RESAMPLE_RATE)
+
+    dt_median = np.median(np.diff(timestamps))
+    fs_input = 1.0 / dt_median
+
+    # Resample to uniform fs_target
+    signal_resampled = nk.signal_resample(
+        signal,
+        sampling_rate=fs_input,
+        desired_sampling_rate=fs_target,
+        method="pchip"
+    )
+    time_uniform = np.linspace(timestamps[0], timestamps[-1], num=len(signal_resampled))
+
+    # Band-pass filter same as your original
+    signal_filtered = nk.signal_filter(
+        signal_resampled,
+        sampling_rate=fs_target,
+        lowcut=float(hr_low_hz),
+        highcut=float(hr_high_hz),
+        method="butterworth",
+        order=Signal.HR_ORDER
+    )
+
+    samples_per_window = int(window_size * fs_target)
+    step_samples = int(step_size * fs_target)
+
+    hr_estimates = []
+    window_centers = []
+
+    for start_idx in range(0, len(signal_filtered) - samples_per_window, step_samples):
+        segment = signal_filtered[start_idx:start_idx + samples_per_window]
+        # pyVHR BPM expects shape [n_estimators, T], so wrap in [None, :]
+        segment2d = segment[None, :]
+        bpm_est = BPM(segment2d, fs_target).BVP_to_BPM()[0]
+        hr_estimates.append(float(bpm_est))
+        window_centers.append(time_uniform[start_idx + samples_per_window // 2])
+
+    return np.array(window_centers), np.array(hr_estimates)
+
+
 def estimate_hr_fft_nt(timestamps, signal):
     fs_target = PRV.FPS_RESAMPLE_RATE
     hr_low_hz = Signal.HR_LOW

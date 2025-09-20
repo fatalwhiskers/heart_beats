@@ -4,7 +4,6 @@ import numpy as np
 import os
 import src.smoother as smo
 import src.not_working.Skin_Makse as mask
-import src.PRV_0 as prv
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision as mp_vision
