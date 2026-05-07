@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=False)
 class Video:
-    FPS: int = 0
-    target_FPS: int = 0
+    FPS: int = 30
+    target_FPS: int = 30
     Csv_path = r"outputs"
     
 @dataclass(frozen=False)

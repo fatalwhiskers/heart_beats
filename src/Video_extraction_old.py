@@ -18,6 +18,18 @@ FOREHEAD_IDX = [107, 66, 69, 109, 338, 299, 296, 336]
 L_CHEEK_IDX  = [118, 119, 100, 126, 209, 49, 129, 203, 205, 50]
 R_CHEEK_IDX  = [347, 348, 329, 355, 429, 279, 358, 423, 425, 280]
 
+FOREHEAD_LANDMARKS = [103,67,109,10,338,297,332,333,299,337,251,108,69,104]
+
+smooth = False
+
+class RollingMedian:
+    def __init__(self, window=5):
+        self.window = window
+        self.buf = deque(maxlen=window)
+    def filter(self, x):
+        self.buf.append(x)
+        return float(np.median(self.buf))
+
 def srgb_to_linear(x):
     x = x.astype(np.float32)
     if x.max() > 1: x /= 255.0
@@ -118,8 +130,7 @@ def mean_rgb_in_polygon(rgb, poly_pts, erode_px=2):
         return None
     roi = rgb[sel]  # Nx3, RGB order
     v = roi.max(axis=1)
-    #keep = (v > 10) & (v < 250)
-    keep = (v > 30) & (v < 220)
+    keep = (v > 10) & (v < 250)
     if not np.any(keep):
         return None
     roi = roi[keep]
@@ -288,15 +299,23 @@ def extract_video_to_rgb(video_path, x1=1, y1=1, x2=1, y2=1,
     if testing:
         os.makedirs(test_output_dir, exist_ok=True)
 
+    R, G, B = [], [], []
+    R_smooth, G_smooth, B_smooth = [], [], []
     Rm, Gm, Bm = [], [], []
     timestamps = []
     frame_count = 0
     face_detector = None
     face_mesh = None
     face_landmarker = None
-    compare_out = None
-
+    ROI_smoother = smo.OneEuroFilter(base_cutoff_hz=1.4, responsiveness=0.15, deriv_cutoff_hz=0.5)
+   # r_filter     = smo.OneEuroFilter(base_cutoff_hz=0.8, responsiveness=0.15, deriv_cutoff_hz=0.5)
+    #g_filter     = smo.OneEuroFilter(base_cutoff_hz=0.8, responsiveness=0.15, deriv_cutoff_hz=0.5)
+    #b_filter     = smo.OneEuroFilter(base_cutoff_hz=0.8, responsiveness=0.15, deriv_cutoff_hz=0.5)
     kf = smo.ROIKalman()
+
+    #r_medfilt = RollingMedian(window=5)
+    #g_medfilt = RollingMedian(window=5)
+    #b_medfilt = RollingMedian(window=5)
     debug_compare = False
     recording = False
     out_dir = "outputs/video"   # your desired folder
@@ -308,8 +327,8 @@ def extract_video_to_rgb(video_path, x1=1, y1=1, x2=1, y2=1,
         jm_eur = smo.JitterMeter(fps=Video.FPS, win_sec=1.0)
         debug_compare = True
         recording = True
-        compare_path = os.path.join(out_dir, "compare_bbox_forehead.mp4")
-        compare_out = cv2.VideoWriter( compare_path ,
+    compare_path = os.path.join(out_dir, "compare_bbox_forehead.mp4")
+    compare_out = cv2.VideoWriter( compare_path ,
                                 cv2.VideoWriter_fourcc(*"mp4v"),
                                 15,
                                 (1280, 720))
@@ -340,6 +359,7 @@ def extract_video_to_rgb(video_path, x1=1, y1=1, x2=1, y2=1,
                 crop_frame = rgb[y1:y2, x1:x2]
                 crop_coords = (x1, y1, x2, y2)
                 
+
             elif crop_mode == 'none':
                 detected = True
                 crop_frame = rgb
@@ -416,8 +436,6 @@ def extract_video_to_rgb(video_path, x1=1, y1=1, x2=1, y2=1,
             elif crop_mode == 'bbox_forehead_jitter':
                 ts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
                 t_s   = ts_ms / 1000.0
-                ROI_smoother = smo.OneEuroFilter(base_cutoff_hz=1.4, responsiveness=0.15, deriv_cutoff_hz=0.5)
-
                 results = face_detector.process(rgb, ts_ms)
                 if results.detections:
                     det = results.detections[0]
@@ -494,6 +512,19 @@ def extract_video_to_rgb(video_path, x1=1, y1=1, x2=1, y2=1,
                         crop_frame = None
                         crop_coords = None
                         detected = False
+
+
+            elif crop_mode == 'mesh_forehead_old':
+                results = face_mesh.process(rgb, ts_ms)
+                if results.multi_face_landmarks:
+                    x1_raw, y1_raw, x2_raw, y2_raw = get_mesh_forehead(rgb, results.multi_face_landmarks[0])
+                    state_raw = smo.box_xyxy_to_cxcywh(x1_raw, y1_raw, x2_raw, y2_raw)       # [cx,cy,w,h]
+                    state_s   = None #ROI_smoother.filter(state_raw.astype(np.float32), t_s)
+                    x1, y1, x2, y2 = smo.box_cxcywh_to_xyxy(*state_s)
+                    crop_frame = rgb[y1:y2, x1:x2]
+                    crop_coords = (x1, y1, x2, y2)
+                    landmarks = [(int(lm.x * w), int(lm.y * h)) for lm in results.multi_face_landmarks[0].landmark]
+                    detected = True
 
             elif crop_mode == 'mesh_forehead':
                 ts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
@@ -592,10 +623,32 @@ def extract_video_to_rgb(video_path, x1=1, y1=1, x2=1, y2=1,
                 if crop_mode != 'poly':
                     ts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
                     t_s = ts_ms / 1000.0
+                   # R_mean = float(np.mean(crop_frame[:, :, 0]))
+                  #  G_mean = float(np.mean(crop_frame[:, :, 1]))
+                  #  B_mean = float(np.mean(crop_frame[:, :, 2]))
+
+                   # R_s = float(r_filter.filter(np.array([R_mean], dtype=np.float32), t_s)[0])
+                   # G_s = float(g_filter.filter(np.array([G_mean], dtype=np.float32), t_s)[0])
+                   # B_s = float(b_filter.filter(np.array([B_mean], dtype=np.float32), t_s)[0])
+
+                   # R_med = r_medfilt.filter(R_mean)
+                   # G_med = g_medfilt.filter(G_mean)
+                   # B_med = b_medfilt.filter(B_mean)
+                    
+                    #R_smooth.append(R_med); G_smooth.append(G_med); B_smooth.append(B_med)
+                 #   B.append(float(np.mean(crop_frame[:, :, 2])))
+                #    G.append(float(np.mean(crop_frame[:, :, 1])))
+                 #   R.append(float(np.mean(crop_frame[:, :, 0])))
+
                     Rma, Gma, Bma, skinmask = rgb_means_with_skin(crop_frame, equalize_Y=True)
                     Bm.append(Bma)
                     Gm.append(Gma)
                     Rm.append(Rma)
+
+
+
+
+
 
             timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             timestamps.append(timestamp)
@@ -639,53 +692,96 @@ def extract_video_to_rgb(video_path, x1=1, y1=1, x2=1, y2=1,
         if face_mesh is not None:
             face_mesh.close()        
         if face_landmarker is not None:       # <-- add
-            face_landmarker.close()
-        if compare_out is not None:        
-            compare_out.release()
+            face_landmarker.close()        
+    compare_out.release()
     cap.release()
     if display:
         cv2.destroyAllWindows()
 
     if interpolate:
+       # R_signal , G_signal, B_signal, t_uniform = ext.resample_rgb_pchip(R, G, B, timestamps) 
+      #  R_smooth_signal , G_smooth_signal, B_smooth_signal, t_uniform = ext.resample_rgb_pchip(R_smooth, G_smooth, B_smooth, timestamps) 
         Rm_signal , Gm_signal , Bm_signal  , t_uniform = ext.resample_rgb_pchip(Rm, Gm, Bm, timestamps)
     else:
         t_uniform = np.array(timestamps, dtype=float)
-        Rm_signal = np.array(Rm, dtype=float)
-        Gm_signal = np.array(Gm, dtype=float)
-        Bm_signal = np.array(Bm, dtype=float)
+        R_signal = np.array(R, dtype=float)
+        G_signal = np.array(G, dtype=float)
+        B_signal = np.array(B, dtype=float)
 
     Rm_signal, t_uniform,  mask_valid, idx_valid, reinsert = ext.fill_short_gaps_then_drop(Rm_signal, t_uniform)
     Gm_signal, _,  mask_valid, idx_valid, reinsert = ext.fill_short_gaps_then_drop(Gm_signal, t_uniform)
     Bm_signal, _,  mask_valid, idx_valid, reinsert = ext.fill_short_gaps_then_drop(Bm_signal, t_uniform)
-
+    #summarize_all(jm_raw, jm_kf, jm_eur, out_csv_path="outputs/video/roi_stability_summary.csv")
+   # R_signal, _,  mask_valid, idx_valid, reinsert = ext.fill_short_gaps_then_drop(R_signal, t_uniform)
+   # G_signal, _,  mask_valid, idx_valid, reinsert = ext.fill_short_gaps_then_drop(G_signal, t_uniform)
+   # B_signal, _,  mask_valid, idx_valid, reinsert = ext.fill_short_gaps_then_drop(B_signal, t_uniform)
+   # plot_traces(t_uniform, G_signal, G_smooth_signal, Gm_signal )
     if crop_mode == 'bbox_forehead_jitter':
         smo.summarize_all(jm_raw, jm_kf, jm_eur)
     return np.array(Rm_signal), np.array(Gm_signal), np.array(Bm_signal), np.array(t_uniform)
+   # R_signal, G_signal, B_signal, bad = repair_impulses_rgb(R_signal, G_signal, B_signal, win_sec=0.5, n_sigma=5)  
 
-def debug_plot_rgb(R, G, B, timestamps):
-    """Call manually during development to inspect raw channel signals."""
-    peaks_red,   _ = find_peaks(R, prominence=5, distance=30)
-    peaks_green, _ = find_peaks(G, prominence=5, distance=30)
-    peaks_blue,  _ = find_peaks(B, prominence=5, distance=30)
+    # plot_rgb_traces(R, G, B, timestamps)
+    t_uniform = np.array(timestamps, dtype=float)
+    R_signal = np.array(R, dtype=float)
+    G_signal = np.array(G, dtype=float)
+    B_signal = np.array(B, dtype=float)
 
+    #plot_detrended(R_signal, G_signal, B_signal, time)
+
+    #plot_fft(G_signal, Video.FPS, label="Green channel")
+    
+    peaks_red, _   = find_peaks(R_signal, prominence=5, distance=30)
+    peaks_green, _ = find_peaks(G_signal, prominence=5, distance=30)
+    peaks_blue, _  = find_peaks(B_signal, prominence=5, distance=30)
+
+    # Plot with peaks marked
     fig, axes = plt.subplots(3, 1, figsize=(15, 6), sharex=True)
-    axes[0].plot(R, 'r'); axes[0].plot(peaks_red,   R[peaks_red],   "ko"); axes[0].set_ylabel("Red")
-    axes[1].plot(G, 'g'); axes[1].plot(peaks_green, G[peaks_green], "ko"); axes[1].set_ylabel("Green")
-    axes[2].plot(B, 'b'); axes[2].plot(peaks_blue,  B[peaks_blue],  "ko"); axes[2].set_ylabel("Blue")
+
+    axes[0].plot(R_signal, 'r')
+    axes[0].plot(peaks_red, R_signal[peaks_red], "ko")
+    axes[0].set_ylabel("Red")
+
+    axes[1].plot(G_signal, 'g')
+    axes[1].plot(peaks_green, G_signal[peaks_green], "ko")
+    axes[1].set_ylabel("Green")
+
+    axes[2].plot(B_signal, 'b')
+    axes[2].plot(peaks_blue, B_signal[peaks_blue], "ko")
+    axes[2].set_ylabel("Blue")
     axes[2].set_xlabel("Time (frames)")
-    plt.tight_layout()
+
     plt.show()
 
-def debug_snr(G, G_smooth):
-    """Compare raw vs processed green channel SNR."""
-    def snr(trace, peaks):
-        baseline = np.delete(trace, peaks)
-        return np.mean(trace[peaks]) / np.std(baseline)
+    detrended = ext.smoothness_priors_detrend(G_signal, lam=10)
+    normalized = ext.normalize(detrended)
 
-    peaks_raw,  _ = find_peaks(G,        prominence=5)
+    normalized = np.asarray(normalized, dtype=float).ravel()
+    G_smooth = np.asarray(G_smooth, dtype=float).ravel()
+    G_smooth = ext.normalize(G_smooth)
+    peaks_raw, _ = find_peaks(G_signal, prominence=5)
     peaks_proc, _ = find_peaks(G_smooth, prominence=5)
-    print(f"SNR Raw:       {snr(G,        peaks_raw):.3f}")
-    print(f"SNR Processed: {snr(G_smooth, peaks_proc):.3f}")
+
+    # Plot comparison
+    plt.figure(figsize=(12,5))
+    plt.plot(normalized, label="Raw", alpha=0.6)
+    plt.plot(G_smooth, label="Detrended + Smoothed", linewidth=2)
+    plt.plot(peaks_raw, normalized[peaks_raw], "ro", label="Raw Peaks")
+    plt.plot(peaks_proc, G_smooth[peaks_proc], "ko", label="Processed Peaks")
+    plt.legend()
+    plt.show()
+
+    # Quantify improvement
+    def snr(trace, peaks):
+        baseline = np.delete(trace, peaks)  # exclude peaks
+        peak_vals = trace[peaks]
+        return np.mean(peak_vals) / np.std(baseline)
+
+    print("SNR Raw:", snr(G_signal, peaks_raw))
+    print("SNR Processed:", snr(G_smooth, peaks_proc))
+
+
+    return np.array(R_signal), np.array(G_signal), np.array(B_signal), np.array(t_uniform)
 
 from scipy.ndimage import median_filter
 
@@ -756,14 +852,15 @@ def rgb_means_with_skin(rgb_frame, min_coverage=0.08, equalize_Y=True):
     """
     x = rgb_frame
 
-    # 1) Skin mask (on the equalized image)
-    mask = quick_skin_mask(x, morph=True)  # your function, returns uint8 mask (0/255)
-
-    # 2) Illumination normalization (equalize Y in YCrCb)
+    # 1) Illumination normalization (equalize Y in YCrCb)
     if equalize_Y:
         ycrcb = cv2.cvtColor(x, cv2.COLOR_RGB2YCrCb)
         Y, Cr, Cb = cv2.split(ycrcb)
+        Y = cv2.equalizeHist(Y)
         x = cv2.cvtColor(cv2.merge([Y, Cr, Cb]), cv2.COLOR_YCrCb2RGB)
+
+    # 2) Skin mask (on the equalized image)
+    mask = quick_skin_mask(x, morph=True)  # your function, returns uint8 mask (0/255)
 
     # 3) Fail-safe: if too few pixels, fall back to full ROI
     if mask.sum() < min_coverage * mask.size * 255:
