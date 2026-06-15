@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/License-Academic-green)](#license)
 [![University](https://img.shields.io/badge/University%20of%20Nottingham-School%20of%20Psychology-informational)](https://www.nottingham.ac.uk/psychology/)
 
-*Undergraduate dissertation project by **Samuel Hardy***
+*Masters dissertation project by **Samuel Hardy***
 
 </div>
 
@@ -20,7 +20,7 @@
 
 Remote photoplethysmography (rPPG) is a **contactless method for measuring heart rate** from facial video by detecting subtle changes in skin colour caused by pulsatile blood flow — no sensors, no contact required.
 
-This repository contains the full Python pipeline developed for my undergraduate dissertation, which systematically compared:
+This repository contains the full Python pipeline developed for my masters dissertation, which systematically compared:
 
 | Component | Options Tested |
 |---|---|
@@ -289,7 +289,7 @@ If you use this code or pipeline, please cite the associated dissertation:
              Selection Methods in RGB Video},
   school  = {School of Psychology, University of Nottingham},
   year    = {2025},
-  type    = {Undergraduate Dissertation}
+  type    = {Masters Dissertation}
 }
 ```
 
