@@ -16,6 +16,25 @@
 
 ---
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Findings](#key-findings)
+- [Datasets](#datasets)
+- [Pipeline](#pipeline)
+- [Dependencies](#dependencies)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Evaluation Metrics](#evaluation-metrics)
+- [Results Summary](#results-summary)
+- [Limitations](#limitations)
+- [Citation](#citation)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
+
+---
+
 ## Overview
 
 Remote photoplethysmography (rPPG) is a **contactless method for measuring heart rate** from facial video by detecting subtle changes in skin colour caused by pulsatile blood flow — no sensors, no contact required.
@@ -36,12 +55,33 @@ Evaluation was performed against **ECG ground truth** across three datasets span
 
 > **Best configuration: Hilbert transform + PCA + Polygonal ROI (forehead & cheeks)**
 
-| Configuration | MAE (bpm) | RMSE (bpm) | Pearson *r* | Within ±10 bpm |
-|---|:---:|:---:|:---:|:---:|
-| **Hilbert + PCA + Polygonal** | **8.04** | **8.97** | **.705** | **73.4%** |
-| Hilbert + ICA + Polygonal | 8.48 | — | — | — |
-| FFT + ICA/PCA + Polygonal | ~15.1 | — | — | — |
-| Welch + PCA/ICA + Polygonal | ~15.3 | — | — | — |
+**Table 1 — MAE comparison across all top configurations** (Dataset 2, n = 629 recordings)
+
+> MAE was the primary selection criterion across all method–ROI combinations. Full metrics were only computed for the best performing configuration.
+
+| Configuration | MAE (bpm) |
+|---|:---:|
+| **Hilbert + PCA + Polygonal** | **8.04** |
+| Hilbert + ICA + Polygonal | 8.48 |
+| Hilbert + ZCA + Polygonal | 9.38 |
+| FFT + ICA + Polygonal | 15.06 |
+| FFT + PCA + Polygonal | 15.06 |
+| FFT + ZCA + Polygonal | 15.25 |
+| Welch + PCA + Polygonal | 15.25 |
+| Welch + ICA + Polygonal | 15.27 |
+| Welch + ZCA + Polygonal | 15.45 |
+
+**Table 2 — Full evaluation metrics for the best configuration**
+
+| Metric | Value |
+|---|:---:|
+| MAE | 8.04 bpm (Mdn = 6.18 bpm) |
+| RMSE | 8.97 bpm |
+| Pearson *r* | .705 [95% CI: .663, .742] |
+| Bland–Altman bias | −0.38 bpm |
+| 95% Limits of Agreement | [−19.26, 18.49] bpm |
+| Within ±10 bpm | 73.4% |
+| Failure rate (MAE > 10 bpm) | 26.6% |
 
 **Key takeaways:**
 - The **Hilbert transform** consistently outperformed FFT and Welch across all datasets by tracking beat-to-beat timing rather than locking onto a single dominant frequency
@@ -92,14 +132,15 @@ Evaluation was performed against **ECG ground truth** across three datasets span
 
 ### ROI Strategies
 
-| Name | Description |
+| `--crop_mode` value | Description |
 |---|---|
 | `none` | Full frame baseline |
 | `manual` | Pre-defined ROI loaded from CSV |
 | `face_track` | BlazeFace bounding box, cropped inward (10% width, 20% height) |
-| `face_track_forehead` | BlazeFace box, 14%-height strip below hairline |
-| `poly_forehead` | Polygonal forehead via 8 MediaPipe landmarks |
-| `poly_full` | Polygonal forehead + left & right cheeks via 27 landmarks |
+| `bbox_forehead` | BlazeFace box, 14%-height strip below hairline |
+| `bbox_forehead_jitter` | As above, with Kalman smoother applied to reduce jitter |
+| `mesh_forehead` | Polygonal forehead via MediaPipe Face Landmarker landmarks |
+| `poly` | Polygonal forehead + left & right cheeks via MediaPipe landmarks |
 
 > **ROI stabilisation:** A Kalman smoother reduces frame-to-frame jitter on bounding box trajectories. Failed detections use the filter's prediction step; unrecoverable frames are NaN-interpolated.
 >
@@ -194,36 +235,84 @@ mkdir models
 
 ---
 
+## Configuration
+
+Before running, set your dataset paths in `src/config.py`. The defaults are:
+
+```python
+# Dataset paths — update these to point to your local data
+fileDataset1.folder_path  = r"data\Dataset1"
+fileDataset1.csv_path     = r"data\CSVFiles\Settings.csv"
+
+fileDataset2.folder_path  = r"data\Dataset2"
+fileDataset2.csv_path     = r"data\CSVFiles\dataset2.csv"
+
+fileDataset3.folder_path  = r"data\Dataset3"
+fileDataset3.csv_path     = r"data\CSVFiles\dataset3.csv"
+
+# Outputs
+outputs/                  # CSV results written here automatically
+```
+
+Key pipeline parameters (also in `src/config.py`):
+
+| Parameter | Default | Description |
+|---|:---:|---|
+| `rppg.window_size` | 20 s | Sliding window length for HR estimation |
+| `rppg.step_size` | 3 s | Step between windows |
+| `Signal.HR_LOW` | 0.75 Hz (45 bpm) | Band-pass lower bound |
+| `Signal.HR_HIGH` | 3.00 Hz (180 bpm) | Band-pass upper bound |
+| `BVP.BVP_RATE` | 64 Hz | Ground truth BVP sampling rate (Dataset 1) |
+| `PRV.FPS_RESAMPLE_RATE` | 128 Hz | Resample rate for Hilbert pipeline |
+| `PRV.KUBIOS_L` | 51 beats | Median filter window for artefact rejection |
+| `PRV.KUBIOS_THRESHOLD` | 0.15 s | PP interval deviation threshold |
+
+The Settings CSV for Dataset 1 follows this format:
+
+```
+filename,        file_CSV,       x1,  y1,  x2,  y2
+vid_s28_T3.avi,  bvp_s28_T3.csv, 520, 115, 880, 730
+vid_s34_T1.avi,  bvp_s34_T1.csv, 520, 115, 880, 730
+```
+
+Where `x1, y1, x2, y2` define the manual crop ROI bounding box in pixels.
+
+---
+
 ## Usage
 
-> **Note:** Update the script names and flags below to match your actual entry points.
+Dataset paths and settings are configured in `src/config.py` before running.
 
-**Run the full pipeline on a single video:**
+**Run on Dataset 1 (UBFC-Phys) with a single channel and crop mode:**
 ```bash
-python src/main.py \
-  --video path/to/video.mp4 \
-  --ground_truth path/to/gt.csv \
-  --roi poly_full \
-  --method PCA \
-  --estimator hilbert \
-  --output results/
+python main.py --channels G --crop_mode manual
 ```
 
-**Run all ROI × method combinations:**
+**Run with multiple channels:**
 ```bash
-python src/run_all.py \
-  --dataset stressid \
-  --data_dir data/stressid/ \
-  --output results/stressid_full.csv
+python main.py --channels R G B PCA ICA --crop_mode poly
 ```
 
-**Reproduce the best configuration (Hilbert + PCA + Polygonal):**
+**Run all channels and all crop modes (reproduces full pipeline):**
 ```bash
-python src/main.py \
-  --video path/to/video.mp4 \
-  --roi poly_full \
-  --method PCA \
-  --estimator hilbert
+python main.py --channels ALL --crop_mode poly
+```
+
+**Available `--channels` options:**
+```
+R, G, B, GREY_W, GREY_A, PCA, ZCA, ICA, CHROM, POS, ALL
+```
+
+**Available `--crop_mode` options:**
+```
+none, manual, face_track, bbox_forehead, bbox_forehead_jitter, mesh_forehead, poly
+```
+
+To switch between datasets, edit the active `run` call at the bottom of `main.py`:
+```python
+runDataset1(channels=args.channels, crop_modes=args.crop_mode)
+# runDataset2(channels=args.channels, crop_modes=args.crop_mode)
+# runDataset3(channels=args.channels, crop_modes=args.crop_mode)
 ```
 
 ---
