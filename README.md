@@ -8,7 +8,6 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Academic-green)](#license)
-[![Status](https://img.shields.io/badge/Status-Research%20Code-orange)]()
 [![University](https://img.shields.io/badge/University%20of%20Nottingham-School%20of%20Psychology-informational)](https://www.nottingham.ac.uk/psychology/)
 
 *Undergraduate dissertation project by **Samuel Hardy***
