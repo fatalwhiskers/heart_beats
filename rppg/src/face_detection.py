@@ -17,7 +17,7 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision as mp_vision
 
-from src.model_manager import ModelManager
+from rppg.src.model_manager import ModelManager
 
 _manager = ModelManager()
 

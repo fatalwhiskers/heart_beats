@@ -16,12 +16,12 @@ import os
 import cv2
 import numpy as np
 
-from src.face_detection   import FaceDetectorV2, FaceLandmarkerV2
-from src.roi_extractor    import ROIExtractor, ROIResult
-from src.skin_processor   import SkinMaskProcessor
-from src.signal_cleaner   import SignalCleaner
-from src.debug_visualiser import DebugVisualiser
-from src.config           import Video
+from rppg.src.face_detection   import FaceDetectorV2, FaceLandmarkerV2
+from rppg.src.roi_extractor    import ROIExtractor, ROIResult
+from rppg.src.skin_processor   import SkinMaskProcessor
+from rppg.src.signal_cleaner   import SignalCleaner
+from rppg.src.debug_visualiser import DebugVisualiser
+from src.config                import Video
 
 
 # Modes that need a face detector
