@@ -5,7 +5,7 @@ from src.config import Video
 from src.rppg import sliding_fft_hr
 from src.config import Signal, fileDataset1, fileDataset2
 import pandas as pd
-import src.Stats as hr_stat
+import analysis.stats as hr_stat
 from scipy.signal import welch, medfilt, savgol_filter, get_window, find_peaks
 from scipy.ndimage import uniform_filter1d
 

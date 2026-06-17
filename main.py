@@ -1,23 +1,24 @@
-import src.Video_extraction as VE
-import src.not_working.BVP as BVP
+from rppg.pipeline import VideoRGBExtractor
+from rppg.src.dataset_loader import DatasetLoader
+import archive.not_working.bvp as BVP
 import src.hilbert_prv as hilly
 import src.rppg as rPPG
-import src.not_working.testv2BVP as vid
+import archive.not_working.testv2_bvp as vid
 import pandas as pd
 import src.plotter as plotter
 import test as test
 import numpy as np
 import src.extract_wave as ext
-import src.not_working.ECG_HR as ecg
+import archive.not_working.ecg_hr as ecg
 import argparse
 import sys
 import os
-import src.Stats as stat
+import analysis.stats as stat
 from pathlib import Path
 from src.config import Video, fileDataset1, fileDataset2, fileDataset3, BVP, rppg, Signal, PRV
 from scipy.signal import welch, butter, filtfilt, get_window
 import cv2
-import src.not_working.testv2BVP as bvp_test
+import archive.not_working.testv2_bvp as bvp_test
 import numpy as np
 from dataclasses import dataclass
 import neurokit2 as nk
@@ -145,26 +146,30 @@ def get_Signals(channels, R_signal, G_signal, B_signal):
 def runDataset1(channels=['G'], cropping = True, crop_modes = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = False):
     Video.FPS = 35
     Video.target_FPS = 35
-    crop_list = VE.load_crop_settings(fileDataset1.csv_path)
+    loader = DatasetLoader()
+    crop_list = loader.load_dataset1(fileDataset1.csv_path)
     
-    for filename, file_CSV, x1, y1, x2, y2 in crop_list:
-        Video.Csv_path = file_CSV
-        video_path = os.path.join(fileDataset1.folder_path, filename)
+    for row in crop_list:
+        Video.Csv_path = row.file_csv
+        video_path = os.path.join(fileDataset1.folder_path, row.filename)
 
         for crop_mode in ([crop_modes] if isinstance(crop_modes, str) else crop_modes):
-            R_signal, G_signal, B_signal, time_array = VE.extract_video_to_rgb(video_path, x1, y1, x2, y2, crop_mode, Display, Testing)        
+            extractor = VideoRGBExtractor(crop_mode=crop_mode, x1=row.x1, y1=row.y1, x2=row.x2, y2=row.y2,
+                                           display=Display, testing=Testing)
+            R_signal, G_signal, B_signal, time_array = extractor.extract(video_path)
             signals = get_Signals(channels, R_signal, G_signal, B_signal)
             for label, signal_data in signals.items():
-                build_table(signal_data, time_array, label, crop_mode, filename, file_CSV)
+                build_table(signal_data, time_array, label, crop_mode, row.filename, row.file_csv)
                 
 def runDataset2(channels=['G'], cropping = True, crop_modes = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = False):
     Video.FPS = 15
     Video.target_FPS = 15
-    crop_list = VE.load_crop_settings_D2(fileDataset2.csv_path)
+    loader = DatasetLoader()
+    crop_list = loader.load_dataset2(fileDataset2.csv_path)
     
-    for subject, filename, file_CSV, x1, y1, x2, y2 in crop_list:
-        video_path = os.path.join(fileDataset2.folder_path, "Videos", filename)
-        CSV_path = os.path.join(fileDataset2.folder_path, file_CSV)   
+    for row in crop_list:
+        video_path = os.path.join(fileDataset2.folder_path, "Videos", row.video_path)
+        CSV_path = os.path.join(fileDataset2.folder_path, row.file_csv)   
         df = pd.read_csv(CSV_path)
         ecg_signal = df["ECG"].values
         signals, info = nk.ecg_process(ecg_signal, sampling_rate=500)
@@ -183,23 +188,26 @@ def runDataset2(channels=['G'], cropping = True, crop_modes = "manual", interpol
 
         for crop_mode in ([crop_modes] if isinstance(crop_modes, str) else crop_modes):
 
-            R_signal, G_signal, B_signal, time_array = VE.extract_video_to_rgb(video_path, x1, y1, x2, y2, crop_mode)
+            extractor = VideoRGBExtractor(crop_mode=crop_mode, x1=row.x1, y1=row.y1, x2=row.x2, y2=row.y2)
+            R_signal, G_signal, B_signal, time_array = extractor.extract(video_path)
             signals = get_Signals(channels, R_signal, G_signal, B_signal)
             for label, signal_data in signals.items():
-                build_table_2(signal_data, time_array, crop_mode, label, subject, filename, file_CSV, hr_gt_windows, hr_t_windows)
+                build_table_2(signal_data, time_array, crop_mode, label, row.subject, row.video_path, row.file_csv, hr_gt_windows, hr_t_windows)
 
 def runDataset3(channels=['G'], cropping = True, crop_modes = "manual", interpolate = True, apply_bandpass = True,  Display = False, Testing = False):
     Video.FPS = 60
     Video.target_FPS = 60
-    crop_list = VE.load_crop_settings(fileDataset3.csv_path)
+    loader = DatasetLoader()
+    crop_list = loader.load_dataset1(fileDataset3.csv_path)
 
-    for filename, file_CSV, x1, y1, x2, y2 in crop_list:
-        video_path = os.path.join(fileDataset3.folder_path, filename)
+    for row in crop_list:
+        video_path = os.path.join(fileDataset3.folder_path, row.filename)
         for crop_mode in ([crop_modes] if isinstance(crop_modes, str) else crop_modes):
-            R_signal, G_signal, B_signal, time_array = VE.extract_video_to_rgb(video_path, x1, y1, x2, y2, crop_mode)
+            extractor = VideoRGBExtractor(crop_mode=crop_mode, x1=row.x1, y1=row.y1, x2=row.x2, y2=row.y2)
+            R_signal, G_signal, B_signal, time_array = extractor.extract(video_path)
             signals = get_Signals(channels, R_signal, G_signal, B_signal)
             for label, signal_data in signals.items():
-                build_table_3(signal_data, time_array, crop_mode, label, filename)
+                build_table_3(signal_data, time_array, crop_mode, label, row.filename)
     return
 
 def smooth_signal(sig, window_size=5):
@@ -606,16 +614,17 @@ def runDataset_1_csv(channels=['G'], cropping=True, crop_modes="manual",
                 interpolate=True, apply_bandpass=True, Display=False, Testing=False):
     Video.FPS = 35
     Video.target_FPS = 35
-    crop_list = VE.load_crop_settings(fileDataset1.csv_path)
+    loader = DatasetLoader()
+    crop_list = loader.load_dataset1(fileDataset1.csv_path)
     out_dir = os.path.join("outputs", "dset1_timeseries")
 
-    for filename, file_CSV, x1, y1, x2, y2 in crop_list:
-        Video.Csv_path = file_CSV
-        video_path = os.path.join(fileDataset1.folder_path, filename)
-        subject = filename.split("_")[1] if "_" in filename else "sub"
+    for row in crop_list:
+        Video.Csv_path = row.file_csv
+        video_path = os.path.join(fileDataset1.folder_path, row.filename)
+        subject = row.filename.split("_")[1] if "_" in row.filename else "sub"
 
         # --- Ground truth once per VIDEO (shared across ROIs)
-        bvp_path = os.path.join(fileDataset1.folder_path, file_CSV)
+        bvp_path = os.path.join(fileDataset1.folder_path, row.file_csv)
         ppg = np.loadtxt(bvp_path)
         signals_gt, info = nk.ppg_process(ppg, sampling_rate=BVP.BVP_RATE)
         hr_gt = signals_gt["PPG_Rate"].values
@@ -626,14 +635,14 @@ def runDataset_1_csv(channels=['G'], cropping=True, crop_modes="manual",
 
         # --- Start ONE builder for the whole video (all ROIs will be added)
         builder = VideoCSVBuilder(out_dir=out_dir, also_long=False)
-        builder.start(subject=subject, recording_id=filename,
+        builder.start(subject=subject, recording_id=row.filename,
                       crop_mode="all_rois", time_s=hr_t_windows, gt_hr_bpm=hr_gt_windows)
 
         # --- Loop over ROIs and methods, add columns to the SAME builder
         for crop_mode in ([crop_modes] if isinstance(crop_modes, str) else crop_modes):
-            R_signal, G_signal, B_signal, time_array = VE.extract_video_to_rgb(
-                video_path, x1, y1, x2, y2, crop_mode, Display, Testing
-            )
+            extractor = VideoRGBExtractor(crop_mode=crop_mode, x1=row.x1, y1=row.y1, x2=row.x2, y2=row.y2,
+                                           display=Display, testing=Testing)
+            R_signal, G_signal, B_signal, time_array = extractor.extract(video_path)
             signals = get_Signals(channels, R_signal, G_signal, B_signal)  # {label: signal}
 
             for label, signal_data in signals.items():
