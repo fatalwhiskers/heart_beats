@@ -10,10 +10,6 @@ Usage
 -----
     python demo/synthetic_test/run_test.py
     python demo/synthetic_test/run_test.py --crop_mode mesh_forehead
-
-If no real face was ever detected at all (a real possibility -- MediaPipe
-is trained on photographic faces, not drawn ones), this prints a clear
-message rather than a raw error.
 """
 
 import argparse
